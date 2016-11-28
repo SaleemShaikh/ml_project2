@@ -203,6 +203,16 @@ def load_img(path, grayscale=False, target_size=None):
     return img
 
 
+def get_binary_label_from_image_path(path, center_x, center_y, threshold=0):
+    from PIL import Image
+    img = Image.open(path)
+    w, h = img.size
+    d = img.getpixel((center_x*w, center_y*h))
+    if d > threshold:
+        return 1
+    else:
+        return 0
+
 def crop_img(img, x, y, ratio=.23, target_size=None):
     ratio = max(0, ratio)
     ratio = min(ratio, 1)
@@ -233,35 +243,47 @@ class RoadImageIterator(Iterator):
             input patch, used as a factor,
             ### TODO This is achieved in the crop image blocks
 
+    Structure :
+        root/
+            training/
+                groundtruth/
+                    satImage_xxx.png
+                images/
+                    satImage_xxx.png
+            test_set_images/
+                test_x/
+                    test_x.png
+
+    Make sure the later generated data is following the same structure and naming convention
+
+
     """
     def __init__(self, directory, image_data_generator,
-                 classes, txtfile='train.txt', ratio=.23,
+                 classes={'non-road':0,'road':1}, ratio=None,
+                 img_folder='training', label_folder='groundtruth', org_folder='images',
+                 original_img_size=(400,400),
+                 stride=(32,32),
                  nb_per_class=10000,
-                 img_folder='photo_orig',
-                 target_size=(256, 256), color_mode='rgb',
+                 target_size=(64, 64), color_mode='rgb',
                  dim_ordering='default',
-                 class_mode='categorical',
                  batch_size=32, shuffle=True, seed=None,
                  save_to_dir=None, save_prefix='', save_format='jpeg'):
         """
         Initilize the road iamge loading iterators
 
-        :param directory:
-        :param image_data_generator:
-        :param classes:
-        :param txtfile:
-        :param ratio:
-        :param nb_per_class:
-        :param img_folder:
-        :param target_size:
-        :param color_mode:
-        :param dim_ordering:
-        :param class_mode:
+        :param directory:               root absolute directory
+        :param image_data_generator:    potential generator (for translation and etc)
+        :param classes:                 number of class
+        :param ratio:                   patch size from original image
+        :param img_folder:              image folder under root absolute directory
+        :param target_size:             target patch size
+        :param color_mode:              color mode
+        :param dim_ordering:            Keras dim ordering, default as 'th' for theano
         :param batch_size:
-        :param shuffle:
-        :param seed:
-        :param save_to_dir:
-        :param save_prefix:
+        :param shuffle:                 shuffle the training data
+        :param seed:                    random seed
+        :param save_to_dir:             directory of saving
+        :param save_prefix:             saving prefix
         :param save_format:
         """
         if dim_ordering == 'default':
@@ -269,6 +291,7 @@ class RoadImageIterator(Iterator):
         self.directory = directory
         self.image_data_generator = image_data_generator
         self.target_size = tuple(target_size)
+        self.original_image_size = original_img_size
         if color_mode not in {'rgb', 'grayscale'}:
             raise ValueError('Invalid color mode:', color_mode,
                              '; expected "rgb" or "grayscale".')
@@ -285,18 +308,20 @@ class RoadImageIterator(Iterator):
             else:
                 self.image_shape = (1,) + self.target_size
         self.classes = classes
-        if class_mode not in {'categorical', 'binary', 'sparse', None}:
-            raise ValueError('Invalid class_mode:', class_mode,
-                             '; expected one of "categorical", '
-                             '"binary", "sparse", or None.')
-        self.class_mode = class_mode
+
         self.save_to_dir = save_to_dir
         self.save_prefix = save_prefix
         self.save_format = save_format
 
-        self.img_folder = img_folder
-        self.txtfile = txtfile
+        # Make it absolute
+        self.img_folder = os.path.join(directory, img_folder)
+        self.label_folder = os.path.join(self.img_folder, label_folder)
+        self.org_folder = os.path.join(self.img_folder, org_folder)
+
+        if ratio is None:
+            ratio = float(target_size[0]) / float(original_img_size[0])
         self.ratio = ratio
+        self.stride = stride
         white_list_formats = {'png', 'jpg', 'jpeg', 'bmp'}
 
         # first, count the number of samples and classes
@@ -308,24 +333,37 @@ class RoadImageIterator(Iterator):
         self.class_indices = {v: k for k, v in classes.iteritems()}
 
         # TODO modified loading logic
-        dirs = range(10)
+        dirs = ('groundtruth', 'images')
+        self.label_files = []
+        self.img_files = []
+
         for subdir in dirs:
+            file_list = []
             subpath = os.path.join(self.img_folder, str(subdir))
             for fname in sorted(os.listdir(subpath)):
+                if fname.lower().startswith('._'):
+                    continue
                 is_valid = False
                 for extension in white_list_formats:
                     if fname.lower().endswith('.' + extension):
+                        file_list.append(fname)
                         is_valid = True
                         break
                 if is_valid:
                     self.nb_sample += 1
+            if subdir is 'groundtruth':
+                self.img_files = file_list
+            else:
+                self.label_files = file_list
+
+        assert len(self.label_files) == len(self.img_files)
+        self.nb_sample /= 2
         print('Found %d images belonging to %d classes.' % (self.nb_sample, self.nb_class))
+        # Store the complete list
 
         # second, build an index of the images in the different class subfolders
-        self.classeslist = self.generatelistfromtxt(txtfile)
-
         super(RoadImageIterator, self).__init__(self.nb_sample, batch_size, shuffle, seed)
-        # Specify nb_per_class
+        # TODO figure out how to generate balanced dataset
         self.nb_per_class = nb_per_class
         self.index_generator = self._flow_index(self.nb_per_class * self.nb_class, batch_size, shuffle, seed)
 
@@ -336,39 +374,39 @@ class RoadImageIterator(Iterator):
         batch_x = np.zeros((current_batch_size,) + self.image_shape)
         grayscale = self.color_mode == 'grayscale'
         # build batch of image data
+        # build batch of labels
+        batch_y = np.zeros((len(batch_x), self.nb_class), dtype='float32')
+        batch_label = []
+        # print(index_array)
+        # print(self.batch_array)
         for i, j in enumerate(index_array):
             # get the index
-            # print(self.batch_array[j])
+            print(self.batch_array[j])
             fname = self.batch_array[j][0]
-            center_x, center_y = self.batch_array[j][1:]
-            img = load_img(os.path.join(self.img_folder, fname), grayscale=grayscale)
+            center_x, center_y = self.batch_array[j][1]
+            print(fname)
+            print(self.img_folder)
+            img = load_img(os.path.join(self.org_folder, fname), grayscale=grayscale)
             img = crop_img(img, center_x, center_y, ratio=self.ratio, target_size=self.target_size)
             x = img_to_array(img, dim_ordering=self.dim_ordering)
             x = self.image_data_generator.random_transform(x)
             x = self.image_data_generator.standardize(x)
             batch_x[i] = x
+            # update self.batch_classes
+            img_label = get_binary_label_from_image_path(os.path.join(self.label_folder, fname), center_x, center_y)
+            batch_y[i, img_label] = 1.
+            batch_label.append(img_label)
 
-        batch_label = []
-
-        # build batch of labels
-        if self.class_mode == 'sparse':
-            batch_y = self.batch_classes[index_array]
-        elif self.class_mode == 'binary':
-            batch_y = self.batch_classes[index_array].astype('float32')
-        elif self.class_mode == 'categorical':
-            batch_y = np.zeros((len(batch_x), self.nb_class), dtype='float32')
-            for i, label in enumerate([self.batch_classes[i] for i in index_array]):
-                batch_y[i, label] = 1.
-                batch_label.append(self.class_indices[label])
-        else:
-            return batch_x
-        # optionally save augmented images to disk for debugging purposes
+        batch_label_name = []
+        print(self.class_indices)
+        for i, label in enumerate(batch_label):
+            batch_label_name.append(self.class_indices[int(label)])
 
         if self.save_to_dir:
             for i in range(current_batch_size):
                 img = array_to_img(batch_x[i], self.dim_ordering, scale=True)
-                fname = '{prefix}_{index}_{hash}.{format}'.format(prefix=self.save_prefix + \
-                                                                  batch_label[i],
+                fname = '{prefix}_{index}_{hash}.{format}'.format(prefix=self.save_prefix +\
+                                                                  batch_label_name[i],
                                                                   index=current_index + i,
                                                                   hash=np.random.randint(1e4),
                                                                   format=self.save_format)
@@ -398,22 +436,33 @@ class RoadImageIterator(Iterator):
         :return:
         """
         self.batch_index = 0
+        self.file_indices = []
         self.batch_array = []
         self.batch_classes = []
-        # Generate balanced sample for each epoch
-        for i in range(self.nb_class):
-            index_array = np.arange(len(self.classeslist[i]))
-            if self.shuffle:
-                index_array = np.random.permutation(len(self.classeslist[i]))
+        # Generate file indices again
+        self.file_indices = np.random.permutation((len(self.label_files)))
+        # Generate batch_array, for batch_classes, leave it to runtime generation
+        valid_patch_per_image = []
+        w, h = self.target_size[0]/2, self.target_size[1]/2
+        while w < self.original_image_size[0] - self.target_size[0]/2:
+            h = self.target_size[1]/2
+            while h < self.original_image_size[1] - self.target_size[1]/2:
+                valid_patch_per_image.append((float(w) / self.original_image_size[0],
+                                              float(h) / self.original_image_size[1]))
+                h += self.stride[1]
+            w += self.stride[0]
+        nb_per_image = len(valid_patch_per_image)
+        print('number of batch generated per image is {}'.format(nb_per_image))
 
-            array = index_array[:self.nb_per_class]
-            self.batch_array += ([self.classeslist[i][a] for a in array])
-            self.batch_classes += ([i for j in range(self.nb_per_class)])
+        for file_index in self.file_indices:
+            for center in valid_patch_per_image:
+                self.batch_array.append((self.img_files[file_index], center))
+        self.nb_batch_array = len(self.batch_array)
 
     def _flow_index(self, N, batch_size=32, shuffle=False, seed=None):
         """
-        flow for the Minc Original dataset
-        Create a random 10,000 per class, total 230,000 per iteration
+        flow for the Road extraction dataset
+        Create a random 20,000 patches data set
 
         :param N:
         :param batch_size:
@@ -431,6 +480,8 @@ class RoadImageIterator(Iterator):
                 index_array = np.arange(N)
                 if shuffle:
                     index_array = np.random.permutation(N)
+                if N > self.nb_batch_array:
+                    index_array %= self.nb_batch_array
 
             current_index = (self.batch_index * batch_size) % N
             if N >= current_index + batch_size:

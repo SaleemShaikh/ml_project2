@@ -76,6 +76,11 @@ def get_dataset_dir():
     datadir_base = os.path.expanduser(os.path.join('~', '.keras'))
     return os.path.join(datadir_base, 'datasets')
 
+
+def get_road_image_dir():
+    return os.path.join(get_dataset_dir(), 'prml2')
+
+
 def get_absolute_dir_project(filepath):
     """
     Get the absolute dir path under project folder.
@@ -102,15 +107,21 @@ def get_weight_path(filename, dir='project'):
         return os.path.join(dir, filename)
 
 
-def get_plot_path(filename, dir='project'):
+def get_plot_path(filename=None, dir='project', mkdir=False):
     if dir is 'project':
         path = get_absolute_dir_project('model_saved/plots')
         if not os.path.exists(path):
             os.mkdir(path)
-        return os.path.join(path, filename)
     elif dir is 'dataset':
         dir_base = os.path.expanduser(os.path.join('~', '.keras'))
-        dir = os.path.join(dir_base, 'plots')
-        if not os.path.exists(dir):
-            os.mkdir(dir)
-        return os.path.join(dir, filename)
+        path = os.path.join(dir_base, 'plots')
+        if not os.path.exists(path):
+            os.mkdir(path)
+    else:
+        raise ValueError("only support project, dataset as dir, input {}".format(dir))
+    if filename is None:
+        return path
+    file_path = os.path.join(path, filename)
+    if mkdir and not os.path.exists(file_path):
+        os.mkdir(file_path)
+    return file_path

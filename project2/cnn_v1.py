@@ -8,7 +8,7 @@ Ref:
 
 
 """
-from build.lib.keras.engine import Input
+from keras.engine import Input
 from keras.models import Model
 from keras.layers import Convolution2D, Deconvolution2D, Flatten
 from keras.layers import MaxPooling2D, Dropout, Dense, Activation

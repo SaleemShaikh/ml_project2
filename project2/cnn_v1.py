@@ -15,6 +15,8 @@ from keras.layers import MaxPooling2D, Dropout, Dense, Activation
 
 
 
+
+
 # Definition of blocks
 def conv_block2(input_tensor, nb_filters, rows, cols, stage):
     """
@@ -69,18 +71,18 @@ def conv_block3(input_tensor, nb_filters, rows, cols, stage):
 def leNet(input_shape, nb_class=2, mode=0, boarder_mode='same', activation='relu'):
     """
     Modified version of LeNet5, change the kernal size from 5,5 to 3,3,
-    :param input_shape:
+    :param input_shape: (3, xx, xx)
     :param mode:
     :param boarder_mode:
     :return:
     """
     img_input = Input(input_shape)
     if mode == 0:
-        x = Convolution2D(6, 3, 3, boarder_mode=boarder_mode)(img_input)
+        x = Convolution2D(6, 3, 3, border_mode=boarder_mode)(img_input)
         x = MaxPooling2D(pool_size=(2,2))(x)
         x = Activation(activation)(x)
 
-        x = Convolution2D(16, 3, 3, boarder_mode=boarder_mode)(x)
+        x = Convolution2D(16, 3, 3, border_mode=boarder_mode)(x)
         x = MaxPooling2D(pool_size=(2, 2))(x)
         x = Activation(activation)(x)
         x = Dropout(0.5)(x)

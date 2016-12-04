@@ -65,27 +65,28 @@ class ExampleEngine(object):
                  load_weight=True, save_weight=True,
                  lr_decay=False, early_stop=False,
                  save_per_epoch=False,
-                 batch_size=128, nb_epoch=100,
                  verbose=2, logfile=None, save_log=True,
                  title='default'):
         """
 
         Parameters
         ----------
-        data    (X, Y) or Generator
-        model   Keras.Model
+        data : tuple/list as (train_X, Y) or ImageDataGenerator, Iterator
+            pass as training data set
+        model : Keras.Model
+            model to be trained, keras
         validation  same as data
         test        same as data
-        load_weight True to support loading weights
-        save_weight True to support saving weights
-        save_per_epoch  True to save the weight after each epochs
-        batch_size      # Should not be called.
-        nb_epoch        # should not be called
-        verbose         verbose same as keras, 0 quiet, 1 detail, 2 brief
-        logfile         LogFile location
-        save_log        True to save log
-        title           Title of all saving files.
+
+        load_weight : bool      True to support loading weights
+        save_weight : bool      True to support saving weights
+        save_per_epoch : bool   True to save the weight after each epochs
+        verbose : int           verbose same as keras, 0 quiet, 1 detail, 2 brief
+        logfile : str           absolute log file path
+        save_log : bool         True to save log
+        title : str             Title of all saving files.
         """
+
         self.model = model
         self.title = title
         self.mode = 0 # 0 for fit ndarray, 1 for fit generator
@@ -134,9 +135,6 @@ class ExampleEngine(object):
             # self.stdout = Logger(self.logfile)
             self.verbose = 2
 
-        self.nb_epoch = nb_epoch
-        self.batch_size = batch_size
-
         # Set the weights
         self.weight_path = get_weight_path(
             "{}-{}_{}.weights".format(self.title, model.name, self.mode),
@@ -152,6 +150,7 @@ class ExampleEngine(object):
         if self.save_weight and self.save_per_epoch:
             self.cbks.append(ModelCheckpoint(self.weight_path + ".tmp", verbose=1))
 
+        # TODO Potentially change the hard-code part to parameter
         self.lr_decay = lr_decay
         if self.lr_decay:
             self.cbks.append(ReduceLROnPlateau(min_lr=0.0001, verbose=1))
@@ -159,7 +158,20 @@ class ExampleEngine(object):
         if self.early_stop:
             self.cbks.append(EarlyStopping(patience=20, verbose=1))
 
-    def fit(self, batch_size=32, nb_epoch=100, verbose=2, augmentation=False):
+    def fit(self, batch_size=32, nb_epoch=100, augmentation=False):
+        """
+        Fit the model based on data passed in
+
+        Parameters
+        ----------
+        batch_size : int
+        nb_epoch : int
+        augmentation : bool
+
+        Returns
+        -------
+        history : keras.callbacks.history --> history.history is a dict
+        """
         self.batch_size = batch_size
         self.nb_epoch = nb_epoch
         if self.load_weight:
@@ -191,10 +203,22 @@ class ExampleEngine(object):
             sys.stdout.close()
         return history
 
-    def fit_generator(self):
+    def fit_generator(self, samples_per_epoch=128*200):
+        """
+        Fit using generator data, called by train
+
+        Parameters
+        ----------
+        samples_per_epoch : int number of sample per epoch
+
+        Returns
+        -------
+        history
+        """
         print("{} fit with generator".format(self.model.name))
         history = self.model.fit_generator(
-            self.train, samples_per_epoch=128*200, nb_epoch=self.nb_epoch,
+            self.train, samples_per_epoch=samples_per_epoch,
+            nb_epoch=self.nb_epoch,
             nb_worker=4,
             validation_data=self.validation, nb_val_samples=self.nb_te_sample,
             verbose=self.verbose,
@@ -254,7 +278,26 @@ class ExampleEngine(object):
                 self.model.save_weights(self.weight_path)
         return hist
 
-    def plot_result(self, metric='acc', linestyle='-', show=False, dictionary=None):
+    def plot_result(self, metric=('loss',), linestyle='-', show=False, dictionary=None):
+        """
+        Plot the result of a complete training process, for a single model
+
+        Parameters
+        ----------
+        metric : str
+            should either be 'acc' or 'loss'
+        linestyle : str
+            matplotlib linestyle, for example, '-', '.-', 'dotted' etc.
+        show : bool
+            default set to False, enable interactive view for matplotlib
+        dictionary : dict
+            optional, for engine without training.
+            should pass a dict name_dict, which name_dict['acc'] = list(accuracy per epoch for training)
+               and name_dict['val_acc'] = list(accuracy per epoch for validation)
+
+        Returns
+        -------
+        """
         if self.history is None:
             return
         history = self.history.history
@@ -270,7 +313,7 @@ class ExampleEngine(object):
             raise RuntimeError("plot only support metric as loss, acc")
         x_factor = range(len(train))
         filename = "{}-{}_{}.png".format(self.title, self.model.name, self.mode)
-        from .utils.visualize_util import plot_train_test
+        from .utils.visualize_util import plot_train_test, plot_multiple_loss_acc
         from _tkinter import TclError
         try:
             plot_train_test(train, valid, x_factor=x_factor, show=show,
@@ -284,6 +327,17 @@ class ExampleEngine(object):
             return
 
     def save_history(self, history, tmp=False):
+        """
+        save the history file
+        Parameters
+        ----------
+        history: keras.callback.history
+        tmp: bool   True for save as 'history_name.gz.tmp'
+
+        Returns
+        -------
+        filename : str  path to the file saved
+        """
         from keras.callbacks import History
         if isinstance(history, History):
             history = history.history
@@ -303,6 +357,17 @@ class ExampleEngine(object):
 
     @staticmethod
     def load_history(filename):
+        """
+        Load the history from given path
+
+        Parameters
+        ----------
+        filename : str      absolute path to file
+
+        Returns
+        -------
+        history: dict
+        """
         logging.debug("load history from {}".format(filename))
         hist = cpickle_load(filename)
         if isinstance(hist, dict):
@@ -312,6 +377,18 @@ class ExampleEngine(object):
 
     @staticmethod
     def load_history_from_log(filename):
+        """
+        Load history from log file
+        Alternative way to load history file
+
+        Parameters
+        ----------
+        filename : str      absolute path to file
+
+        Returns
+        -------
+        history : dict
+        """
         logging.debug('Load history from {}'.format(filename))
         with open(filename, 'r') as f:
             lines = [line.rstrip() for line in f]

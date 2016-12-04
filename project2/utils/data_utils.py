@@ -15,7 +15,6 @@ import os
 
 def crop(x, center_x, center_y, ratio=.23, channel_index=0):
     """
-
     :param x: as nparray (3,x,x)
     :param center_x:
     :param center_y:
@@ -234,6 +233,7 @@ def list_pictures(directory, ext='jpg|jpeg|bmp|png'):
 
 
 class RoadImageIterator(Iterator):
+
     ## TODO modified the loading structure
     """
     overall logic should be:
@@ -255,8 +255,6 @@ class RoadImageIterator(Iterator):
                     test_x.png
 
     Make sure the later generated data is following the same structure and naming convention
-
-
     """
     def __init__(self, directory, image_data_generator,
                  classes={'non-road':0,'road':1}, ratio=None,

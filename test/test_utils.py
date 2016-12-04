@@ -19,6 +19,7 @@ def test_RoadImageIterator():
     path = get_plot_path('img_patch', 'dataset', mkdir=True)
     itr = RoadImageIterator(dir, gen, save_to_dir=path, save_prefix='test')
     batch_x, batch_y = itr.next()
+    print(type(batch_x))
 
 
 if __name__ == '__main__':

@@ -387,6 +387,8 @@ class RoadImageIterator(Iterator):
             print(fname)
             print(self.img_folder)
             img = load_img(os.path.join(self.org_folder, fname), grayscale=grayscale)
+
+            # ADD MORE LOGIC HERE, LOAD
             img = crop_img(img, center_x, center_y, ratio=self.ratio, target_size=self.target_size)
             x = img_to_array(img, dim_ordering=self.dim_ordering)
             x = self.image_data_generator.random_transform(x)

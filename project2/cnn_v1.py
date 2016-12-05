@@ -76,11 +76,11 @@ def leNet(input_shape, nb_class=2, mode=0, boarder_mode='same', activation='relu
     """
     img_input = Input(input_shape)
     if mode == 0:
-        x = Convolution2D(6, 3, 3, boarder_mode=boarder_mode)(img_input)
+        x = Convolution2D(6, 3, 3, border_mode=boarder_mode)(img_input)
         x = MaxPooling2D(pool_size=(2,2))(x)
         x = Activation(activation)(x)
 
-        x = Convolution2D(16, 3, 3, boarder_mode=boarder_mode)(x)
+        x = Convolution2D(16, 3, 3, border_mode=boarder_mode)(x)
         x = MaxPooling2D(pool_size=(2, 2))(x)
         x = Activation(activation)(x)
         x = Dropout(0.5)(x)
@@ -94,5 +94,7 @@ def leNet(input_shape, nb_class=2, mode=0, boarder_mode='same', activation='relu
         model = Model(img_input, x, name='LeNet5')
 
         return model
+
+
 
 

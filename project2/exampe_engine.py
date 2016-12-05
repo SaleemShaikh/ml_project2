@@ -31,11 +31,11 @@ from .utils.io_utils import cpickle_load, cpickle_save
 
 
 def getlogfiledir():
-    return get_absolute_dir_project('model_saved/log')
+    return get_absolute_dir_project('model_saved/log', mkDir=True)
 
 
 def gethistoryfiledir():
-    return get_absolute_dir_project('model_saved/history')
+    return get_absolute_dir_project('model_saved/history', mkDir=True)
 
 def hist_average(historys):
     raise NotImplementedError
@@ -110,6 +110,8 @@ class ExampleEngine(object):
             if validation is not None:
                 assert isinstance(validation, (Iterator,))
                 self.nb_te_sample = validation.nb_sample
+            else:
+                self.nb_te_sample = None
             if test is not None:
                 assert isinstance(test, (ImageDataGenerator, Iterator))
 
@@ -123,8 +125,12 @@ class ExampleEngine(object):
         self.log_flag = save_log
         self.default_stdout = sys.stdout
         if logfile is None:
-            self.logfile = os.path.join(getlogfiledir(), "{}-{}_{}.log".format(
-                self.title, model.name, self.mode))
+            if hasattr(model, 'mode'):
+                self.logfile = os.path.join(getlogfiledir(), "{}-{}_{}.log".format(
+                    self.title, model.name, self.mode))
+            else:
+                self.logfile = os.path.join(getlogfiledir(), "{}-{}.log".format(
+                    self.title, model.name))
         else:
             self.logfile = os.path.join(getlogfiledir(), "{}-{}_{}_{}.log".format(
                 self.title, model.name, self.mode, logfile))
@@ -254,34 +260,66 @@ class ExampleEngine(object):
                 self.model.save_weights(self.weight_path)
         return hist
 
-    def plot_result(self, metric='acc', linestyle='-', show=False, dictionary=None):
+    def plot_result(self, metric=('loss', 'acc'), linestyle='-', show=False, dictionary=None):
+        """
+        Plot result according to metrics passed in
+        Parameters
+        ----------
+        metric : list or str  ('loss','acc') or one of them
+        linestyle
+        show
+        dictionary
+
+        Returns
+        -------
+
+        """
+        filename = "{}-{}_{}.png".format(self.title, self.model.name, self.mode)
         if self.history is None:
             return
         history = self.history.history
         if dictionary is not None:
             history = dictionary
-        if metric is 'acc':
-            train = history['acc']
-            valid = history['val_acc']
-        elif metric is 'loss':
-            train = history['loss']
-            valid = history['val_loss']
+        if isinstance(metric, str):
+            if metric is 'acc':
+                train = history['acc']
+                valid = history['val_acc']
+            elif metric is 'loss':
+                train = history['loss']
+                valid = history['val_loss']
+            else:
+                raise RuntimeError("plot only support metric as loss, acc")
+            x_factor = range(len(train))
+            from keras.utils.visualize_util import plot_train_test
+            from _tkinter import TclError
+            try:
+                plot_train_test(train, valid, x_factor=x_factor, show=show,
+                                xlabel='epoch', ylabel=metric,
+                                linestyle=linestyle,
+                                filename=filename, plot_type=0)
+                self.save_history(history)
+            except TclError:
+                print("Catch the Tcl Error, save the history accordingly")
+                self.save_history(history)
+                return
         else:
-            raise RuntimeError("plot only support metric as loss, acc")
-        x_factor = range(len(train))
-        filename = "{}-{}_{}.png".format(self.title, self.model.name, self.mode)
-        from .utils.visualize_util import plot_train_test
-        from _tkinter import TclError
-        try:
-            plot_train_test(train, valid, x_factor=x_factor, show=show,
-                            xlabel='epoch', ylabel=metric,
-                            linestyle=linestyle,
-                            filename=filename, plot_type=0)
-            self.save_history(history)
-        except TclError:
-            print("Catch the Tcl Error, save the history accordingly")
-            self.save_history(history)
-            return
+            assert len(metric) == 2
+            tr_loss = history['loss']
+            tr_acc = history['acc']
+            va_loss = history['val_loss']
+            va_acc = history['val_acc']
+            x_factor = range(len(tr_loss))
+            from keras.utils.visualize_util import plot_loss_acc
+            from _tkinter import TclError
+            try:
+                plot_loss_acc(tr_loss, va_loss, tr_acc=tr_acc, te_acc=va_acc, show=show,
+                              xlabel='epoch', ylabel=metric,
+                              filename=filename)
+                self.save_history(history)
+            except TclError:
+                print("Catch the Tcl Error, save the history accordingly")
+                self.save_history(history)
+                return
 
     def save_history(self, history, tmp=False):
         from keras.callbacks import History

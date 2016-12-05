@@ -13,6 +13,8 @@ import os
 
 
 
+
+
 def crop(x, center_x, center_y, ratio=.23, channel_index=0):
     """
 
@@ -231,8 +233,6 @@ def list_pictures(directory, ext='jpg|jpeg|bmp|png'):
             if os.path.isfile(os.path.join(directory, f)) and re.match('([\w]+\.(?:' + ext + '))', f)]
 
 
-
-
 class RoadImageIterator(Iterator):
     ## TODO modified the loading structure
     """
@@ -381,11 +381,11 @@ class RoadImageIterator(Iterator):
         # print(self.batch_array)
         for i, j in enumerate(index_array):
             # get the index
-            print(self.batch_array[j])
+            # print(self.batch_array[j])
             fname = self.batch_array[j][0]
             center_x, center_y = self.batch_array[j][1]
-            print(fname)
-            print(self.img_folder)
+            # print(fname)
+            # print(self.img_folder)
             img = load_img(os.path.join(self.org_folder, fname), grayscale=grayscale)
 
             # ADD MORE LOGIC HERE, LOAD
@@ -400,7 +400,7 @@ class RoadImageIterator(Iterator):
             batch_label.append(img_label)
 
         batch_label_name = []
-        print(self.class_indices)
+        # print(self.class_indices)
         for i, label in enumerate(batch_label):
             batch_label_name.append(self.class_indices[int(label)])
 

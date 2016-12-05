@@ -76,8 +76,6 @@ def get_project_dir():
     current_dir = os.path.dirname(os.path.realpath(__file__))
     current_dir = os.path.dirname(current_dir)
     current_dir = os.path.dirname(current_dir)
-    current_dir = os.path.dirname(current_dir)
-    current_dir = os.path.dirname(current_dir)
     return current_dir
 
 

@@ -193,6 +193,9 @@ class ExampleEngine(object):
         if self.save_weight and self.save_per_epoch:
             # Potentially remove the tmp file.
             os.remove(self.weight_path + '.tmp')
+            print("Save weights to {}".format(self.weight_path))
+            self.model.save_weights(self.weight_path, overwrite=True)
+
         if self.log_flag:
             sys.stdout.close()
         return history
@@ -206,6 +209,7 @@ class ExampleEngine(object):
             verbose=self.verbose,
             callbacks=self.cbks)
         if self.save_weight:
+            print('save weights to {}'.format(self.weight_path))
             self.model.save_weights(self.weight_path)
         self.history = history
         return self.history

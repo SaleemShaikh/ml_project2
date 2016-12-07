@@ -205,15 +205,19 @@ def load_img(path, grayscale=False, target_size=None):
     return img
 
 
-def get_binary_label_from_image_path(path, center_x, center_y, threshold=0):
-    from PIL import Image
-    img = Image.open(path)
+def get_binary_label_from_image(img, center_x, center_y, threshold=0):
     w, h = img.size
-    d = img.getpixel((center_x*w, center_y*h))
+    d = img.getpixel((center_x * w, center_y * h))
     if d > threshold:
         return 1
     else:
         return 0
+
+
+def get_binary_label_from_image_path(path, center_x, center_y, threshold=0):
+    from PIL import Image
+    img = Image.open(path)
+    get_binary_label_from_image(img, center_x, center_y, threshold)
 
 def crop_img(img, x, y, ratio=.23, target_size=None):
     ratio = max(0, ratio)
@@ -234,7 +238,6 @@ def list_pictures(directory, ext='jpg|jpeg|bmp|png'):
 
 
 class RoadImageIterator(Iterator):
-    ## TODO modified the loading structure
     """
     overall logic should be:
         Read the image files
@@ -259,15 +262,19 @@ class RoadImageIterator(Iterator):
 
     """
     def __init__(self, directory, image_data_generator,
-                 classes={'non-road':0,'road':1}, ratio=None,
-                 img_folder='training', label_folder='groundtruth', org_folder='images',
+                 data_folder='training', label_folder='groundtruth', image_folder='images',
+                 classes={'non-road': 0, 'road': 1},
                  original_img_size=(400,400),
                  stride=(32,32),
                  nb_per_class=10000,
+                 ratio=None,
                  target_size=(64, 64), color_mode='rgb',
                  dim_ordering='default',
-                 batch_size=32, shuffle=True, seed=None,
-                 save_to_dir=None, save_prefix='', save_format='jpeg'):
+                 batch_size=32,
+                 shuffle=True, seed=None,
+                 preload=0,
+                 save_to_dir=None, save_prefix='', save_format='jpeg'
+                 ):
         """
         Initilize the road iamge loading iterators
 
@@ -275,7 +282,7 @@ class RoadImageIterator(Iterator):
         :param image_data_generator:    potential generator (for translation and etc)
         :param classes:                 number of class
         :param ratio:                   patch size from original image
-        :param img_folder:              image folder under root absolute directory
+        :param data_folder:              image folder under root absolute directory
         :param target_size:             target patch size
         :param color_mode:              color mode
         :param dim_ordering:            Keras dim ordering, default as 'th' for theano
@@ -285,18 +292,41 @@ class RoadImageIterator(Iterator):
         :param save_to_dir:             directory of saving
         :param save_prefix:             saving prefix
         :param save_format:
+        :param preload:                 preload image.  0 - no preload,
+                                                        1 - preload image,
+                                                        2 - preload batch
         """
+        # Check validity of input
         if dim_ordering == 'default':
             dim_ordering = K.image_dim_ordering()
+
+        if color_mode not in {'rgb', 'grayscale'}:
+            raise ValueError('Invalid color mode:', color_mode,
+                             '; expected "rgb" or "grayscale".')
+
+        # Properties
         self.directory = directory
         self.image_data_generator = image_data_generator
         self.target_size = tuple(target_size)
         self.original_image_size = original_img_size
-        if color_mode not in {'rgb', 'grayscale'}:
-            raise ValueError('Invalid color mode:', color_mode,
-                             '; expected "rgb" or "grayscale".')
+        self.classes = classes
+        if ratio is None:
+            ratio = float(target_size[0]) / float(original_img_size[0])
+        self.ratio = ratio
+        self.stride = stride
+        self.img_dict = dict()     # hold the images being loaded
+        self.label_dict = dict()
+
+        # Flags
+        self.preload = preload
         self.color_mode = color_mode
         self.dim_ordering = dim_ordering
+
+        # Save the patch
+        self.save_to_dir = save_to_dir
+        self.save_prefix = save_prefix
+        self.save_format = save_format
+
         if self.color_mode == 'rgb':
             if self.dim_ordering == 'tf':
                 self.image_shape = self.target_size + (3,)
@@ -307,21 +337,12 @@ class RoadImageIterator(Iterator):
                 self.image_shape = self.target_size + (1,)
             else:
                 self.image_shape = (1,) + self.target_size
-        self.classes = classes
-
-        self.save_to_dir = save_to_dir
-        self.save_prefix = save_prefix
-        self.save_format = save_format
 
         # Make it absolute
-        self.img_folder = os.path.join(directory, img_folder)
+        self.img_folder = os.path.join(directory, data_folder)
         self.label_folder = os.path.join(self.img_folder, label_folder)
-        self.org_folder = os.path.join(self.img_folder, org_folder)
+        self.org_folder = os.path.join(self.img_folder, image_folder)
 
-        if ratio is None:
-            ratio = float(target_size[0]) / float(original_img_size[0])
-        self.ratio = ratio
-        self.stride = stride
         white_list_formats = {'png', 'jpg', 'jpeg', 'bmp'}
 
         # first, count the number of samples and classes
@@ -332,8 +353,9 @@ class RoadImageIterator(Iterator):
         self.nb_class = len(classes)
         self.class_indices = {v: k for k, v in classes.iteritems()}
 
-        # TODO modified loading logic
-        dirs = ('groundtruth', 'images')
+        self.batch_classes = []
+        self.file_indices = []
+        dirs = (label_folder, image_folder)
         self.label_files = []
         self.img_files = []
 
@@ -384,18 +406,11 @@ class RoadImageIterator(Iterator):
             # print(self.batch_array[j])
             fname = self.batch_array[j][0]
             center_x, center_y = self.batch_array[j][1]
-            # print(fname)
-            # print(self.img_folder)
-            img = load_img(os.path.join(self.org_folder, fname), grayscale=grayscale)
-
-            # ADD MORE LOGIC HERE, LOAD
-            img = crop_img(img, center_x, center_y, ratio=self.ratio, target_size=self.target_size)
-            x = img_to_array(img, dim_ordering=self.dim_ordering)
-            x = self.image_data_generator.random_transform(x)
-            x = self.image_data_generator.standardize(x)
+            x = self._load_patch(fname, center_x, center_y, grayscale, fromdict=self.preload == 2)
             batch_x[i] = x
             # update self.batch_classes
-            img_label = get_binary_label_from_image_path(os.path.join(self.label_folder, fname), center_x, center_y)
+            img_label = self._get_label(fname, center_x, center_y, threshold=0, fromdict=self.preload > 0)
+
             batch_y[i, img_label] = 1.
             batch_label.append(img_label)
 
@@ -461,6 +476,27 @@ class RoadImageIterator(Iterator):
                 self.batch_array.append((self.img_files[file_index], center))
         self.nb_batch_array = len(self.batch_array)
 
+        # Load all images
+
+        if self.preload == 2:
+            patch_dict = dict()
+
+        if self.preload > 0:
+            if len(self.img_dict) == 0:
+                grayscale = self.color_mode == 'grayscale'
+                for fname in self.img_files:
+                    img = self.img_dict[fname] = self._get_image(fname, grayscale, fromdict=False)
+                    self.label_dict[fname] = self._get_image(fname, fromdict=False,
+                                                             absolute_path=os.path.join(self.label_folder, fname))
+                    if self.preload == 2:
+                        for center in valid_patch_per_image:
+                            patch_dict["{}_{}_{}".format(fname, str(center[0]), str(center[1]))] = \
+                              self._load_patch_from_img(img, center[0], center[1], grayscale=grayscale)
+
+        if self.preload == 2:
+            assert len(patch_dict) == len(self.img_files) * nb_per_image
+            self.img_dict = patch_dict
+
     def _flow_index(self, N, batch_size=32, shuffle=False, seed=None):
         """
         flow for the Road extraction dataset
@@ -495,3 +531,61 @@ class RoadImageIterator(Iterator):
             self.total_batches_seen += 1
             yield (index_array[current_index: current_index + current_batch_size],
                    current_index, current_batch_size)
+
+    def _load_patch(self, fname, center_x, center_y, grayscale=False, fromdict=False):
+        """
+        Load patches with given name and center
+
+        Parameters
+        ----------
+        fname
+        center_x
+        center_y
+
+        Returns
+        -------
+
+        """
+        if fromdict and self.preload == 2:
+            return self.img_dict["{}_{}_{}".format(fname, str(center_x), str(center_y))]
+
+        img = self._get_image(fname, grayscale, self.preload == 1)
+        # ADD MORE LOGIC HERE, LOAD
+        img = crop_img(img, center_x, center_y, ratio=self.ratio, target_size=self.target_size)
+        x = img_to_array(img, dim_ordering=self.dim_ordering)
+        x = self.image_data_generator.random_transform(x)
+        x = self.image_data_generator.standardize(x)
+        return x
+
+    def _load_patch_from_img(self, img, center_x, center_y, grayscale=False):
+        img = crop_img(img, center_x, center_y, ratio=self.ratio, target_size=self.target_size)
+        x = img_to_array(img, dim_ordering=self.dim_ordering)
+        x = self.image_data_generator.random_transform(x)
+        x = self.image_data_generator.standardize(x)
+        return x
+
+    def _get_image(self, fname, grayscale=True, fromdict=False, absolute_path=None):
+        """
+        Get image operation
+        Parameters
+        ----------
+        fname
+        grayscale
+
+        Returns
+        -------
+
+        """
+        if fromdict and self.preload == 1:
+            return self.img_dict[fname]
+        else:
+            if absolute_path is None:
+                return load_img(os.path.join(self.org_folder, fname), grayscale=grayscale)
+            else:
+                return load_img(absolute_path, grayscale)
+
+    def _get_label(self, fname, center_x, center_y, fromdict=False, threshold=0):
+        if fromdict and self.preload > 0:
+            return get_binary_label_from_image(self.label_dict[fname], center_x, center_y, threshold=threshold)
+        else:
+            return get_binary_label_from_image_path(os.path.join(self.label_folder, fname), center_x, center_y)

@@ -2,11 +2,10 @@ from __future__ import absolute_import
 
 from keras import optimizers
 from keras.preprocessing.image import ImageDataGenerator
-
-from project2.cnn_v1 import leNet
+from model.cnn_v1 import leNet
+from project2.exampe_engine import ExampleEngine
 from project2.utils.data_utils import RoadImageIterator
 from project2.utils.io_utils import get_road_image_dir
-from project2.exampe_engine import ExampleEngine
 
 
 IMG_HEIGHT = 16

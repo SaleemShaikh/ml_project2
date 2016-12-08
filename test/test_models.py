@@ -1,6 +1,6 @@
 import pytest
 
-from project2.fcn_model import fcn_32s
+from model.fcn_model import fcn_32s
 
 
 def test_fcn32s():

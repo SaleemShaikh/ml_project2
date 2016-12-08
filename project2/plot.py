@@ -1,9 +1,9 @@
+import logging
+
 from keras.utils.visualize_util import plot
+from model.cnn_v1 import leNet
 from project2.utils.io_utils import get_plot_path_with_subdir
 
-from project2.cnn_v1 import leNet
-
-import logging
 
 def plot_model(model):
     path = get_plot_path_with_subdir(model.name + '.png', subdir='models', dir='project')

@@ -42,6 +42,7 @@ def leNet(input_shape, nb_class=2, mode=0, boarder_mode='same', activation='relu
         x = Dense(84)(x)
         x = Activation(activation)(x)
         x = Dense(nb_class)(x)
+        x = Activation('softmax')(x)
 
         model = Model(img_input, x, name='LeNet5')
 

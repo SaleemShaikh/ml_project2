@@ -11,7 +11,7 @@ import scipy.ndimage as ndi
 from PIL import Image
 
 import keras.backend as K
-from keras.preprocessing.image import Iterator
+from keras.preprocessing.image import Iterator, ImageDataGenerator, DirectoryIterator
 
 
 
@@ -114,7 +114,9 @@ def img_float_to_uint8(img, pixel_depth=255):
 
 
 def concatenate_images(img, gt_img):
+    gt_img = np.squeeze(gt_img)
     nChannels = len(gt_img.shape)
+    print('gt_img shape {}'.format(gt_img.shape))
     w = gt_img.shape[0]
     h = gt_img.shape[1]
     if nChannels == 3:
@@ -292,7 +294,7 @@ def array_to_img(x, dim_ordering='default', scale=True):
         # RGB
         return Image.fromarray(x.astype('uint8'), 'RGB')
     elif x.shape[2] == 1:
-        # grayscale
+        # greyscale
         return Image.fromarray(x[:, :, 0].astype('uint8'), 'L')
     else:
         raise Exception('Unsupported channel number: ', x.shape[2])
@@ -318,20 +320,20 @@ def img_to_array(img, dim_ordering='default'):
     return x
 
 
-def load_img(path, grayscale=False, target_size=None):
+def load_img(path, greyscale=False, target_size=None):
     '''Load an image into PIL format.
 
     # Arguments
         path: path to image file
-        grayscale: boolean
+        greyscale: boolean
         target_size: None (default to original size)
             or (img_height, img_width)
     '''
     from PIL import Image
     img = Image.open(path)
-    if grayscale:
+    if greyscale:
         img = img.convert('L')
-    else:  # Ensure 3 channel even when loaded image is grayscale
+    else:  # Ensure 3 channel even when loaded image is greyscale
         img = img.convert('RGB')
     if target_size:
         img = img.resize((target_size[1], target_size[0]))
@@ -351,6 +353,7 @@ def get_binary_label_from_image_path(path, center_x, center_y, threshold=0):
     from PIL import Image
     img = Image.open(path)
     get_binary_label_from_image(img, center_x, center_y, threshold)
+
 
 def crop_img(img, x, y, ratio=.23, target_size=None):
     ratio = max(0, ratio)
@@ -417,7 +420,7 @@ class RoadImageIterator(Iterator):
         :param ratio:                   patch size from original image
         :param data_folder:              image folder under root absolute directory
         :param target_size:             target patch size
-        :param color_mode:              color mode
+        :param color_mode:              color cov_mode
         :param dim_ordering:            Keras dim ordering, default as 'th' for theano
         :param batch_size:
         :param shuffle:                 shuffle the training data
@@ -433,12 +436,14 @@ class RoadImageIterator(Iterator):
         if dim_ordering == 'default':
             dim_ordering = K.image_dim_ordering()
 
-        if color_mode not in {'rgb', 'grayscale'}:
-            raise ValueError('Invalid color mode:', color_mode,
-                             '; expected "rgb" or "grayscale".')
+        if color_mode not in {'rgb', 'greyscale'}:
+            raise ValueError('Invalid color cov_mode:', color_mode,
+                             '; expected "rgb" or "greyscale".')
 
         # Properties
         self.directory = directory
+        if image_data_generator is None:
+            image_data_generator = ImageDataGenerator()
         self.image_data_generator = image_data_generator
         self.target_size = tuple(target_size)
         self.original_image_size = original_img_size
@@ -527,7 +532,7 @@ class RoadImageIterator(Iterator):
             index_array, current_index, current_batch_size = next(self.index_generator)
         # The transformation of images is not under thread lock so it can be done in parallel
         batch_x = np.zeros((current_batch_size,) + self.image_shape)
-        grayscale = self.color_mode == 'grayscale'
+        greyscale = self.color_mode == 'greyscale'
         # build batch of image data
         # build batch of labels
         batch_y = np.zeros((len(batch_x), self.nb_class), dtype='float32')
@@ -539,7 +544,7 @@ class RoadImageIterator(Iterator):
             # print(self.batch_array[j])
             fname = self.batch_array[j][0]
             center_x, center_y = self.batch_array[j][1]
-            x = self._load_patch(fname, center_x, center_y, grayscale, fromdict=self.preload == 2)
+            x = self._load_patch(fname, center_x, center_y, greyscale, fromdict=self.preload == 2)
             batch_x[i] = x
             # update self.batch_classes
             img_label = self._get_label(fname, center_x, center_y, threshold=0, fromdict=self.preload > 0)
@@ -616,15 +621,15 @@ class RoadImageIterator(Iterator):
 
         if self.preload > 0:
             if len(self.img_dict) == 0:
-                grayscale = self.color_mode == 'grayscale'
+                greyscale = self.color_mode == 'greyscale'
                 for fname in self.img_files:
-                    img = self.img_dict[fname] = self._get_image(fname, grayscale, fromdict=False)
+                    img = self.img_dict[fname] = self._get_image(fname, greyscale, fromdict=False)
                     self.label_dict[fname] = self._get_image(fname, fromdict=False,
                                                              absolute_path=os.path.join(self.label_folder, fname))
                     if self.preload == 2:
                         for center in valid_patch_per_image:
                             patch_dict["{}_{}_{}".format(fname, str(center[0]), str(center[1]))] = \
-                              self._load_patch_from_img(img, center[0], center[1], grayscale=grayscale)
+                              self._load_patch_from_img(img, center[0], center[1], greyscale=greyscale)
 
         if self.preload == 2:
             assert len(patch_dict) == len(self.img_files) * nb_per_image
@@ -665,7 +670,7 @@ class RoadImageIterator(Iterator):
             yield (index_array[current_index: current_index + current_batch_size],
                    current_index, current_batch_size)
 
-    def _load_patch(self, fname, center_x, center_y, grayscale=False, fromdict=False):
+    def _load_patch(self, fname, center_x, center_y, greyscale=False, fromdict=False):
         """
         Load patches with given name and center
 
@@ -682,7 +687,7 @@ class RoadImageIterator(Iterator):
         if fromdict and self.preload == 2:
             return self.img_dict["{}_{}_{}".format(fname, str(center_x), str(center_y))]
 
-        img = self._get_image(fname, grayscale, self.preload == 1)
+        img = self._get_image(fname, greyscale, self.preload == 1)
         # ADD MORE LOGIC HERE, LOAD
         img = crop_img(img, center_x, center_y, ratio=self.ratio, target_size=self.target_size)
         x = img_to_array(img, dim_ordering=self.dim_ordering)
@@ -690,20 +695,20 @@ class RoadImageIterator(Iterator):
         x = self.image_data_generator.standardize(x)
         return x
 
-    def _load_patch_from_img(self, img, center_x, center_y, grayscale=False):
+    def _load_patch_from_img(self, img, center_x, center_y, greyscale=False):
         img = crop_img(img, center_x, center_y, ratio=self.ratio, target_size=self.target_size)
         x = img_to_array(img, dim_ordering=self.dim_ordering)
         x = self.image_data_generator.random_transform(x)
         x = self.image_data_generator.standardize(x)
         return x
 
-    def _get_image(self, fname, grayscale=True, fromdict=False, absolute_path=None):
+    def _get_image(self, fname, greyscale=True, fromdict=False, absolute_path=None):
         """
         Get image operation
         Parameters
         ----------
         fname
-        grayscale
+        greyscale
 
         Returns
         -------
@@ -713,12 +718,379 @@ class RoadImageIterator(Iterator):
             return self.img_dict[fname]
         else:
             if absolute_path is None:
-                return load_img(os.path.join(self.org_folder, fname), grayscale=grayscale)
+                return load_img(os.path.join(self.org_folder, fname), greyscale=greyscale)
             else:
-                return load_img(absolute_path, grayscale)
+                return load_img(absolute_path, greyscale)
 
     def _get_label(self, fname, center_x, center_y, fromdict=False, threshold=0):
         if fromdict and self.preload > 0:
             return get_binary_label_from_image(self.label_dict[fname], center_x, center_y, threshold=threshold)
         else:
             return get_binary_label_from_image_path(os.path.join(self.label_folder, fname), center_x, center_y)
+
+
+class DirectoryImageLabelIterator(Iterator):
+    """
+    Directory Image Iterator, iterate and return the images in one folder.
+    No class information is returned, instead, return the image label file
+
+    Specific targeted at Segmentation problems
+
+    """
+
+    def __init__(self, directory, image_data_generator,
+                 data_folder='training', label_folder='groundtruth', image_folder='images',
+                 classes={'non-road': 0, 'road': 1},
+                 original_img_size=(400,400),
+                 stride=(32,32),
+                 ratio=None,
+                 target_size=(64, 64), color_mode='rgb',
+                 dim_ordering='default',
+                 batch_size=32,
+                 shuffle=True, seed=None,
+                 preload=0,
+                 save_to_dir=None, save_prefix='', save_format='jpeg'
+                 ):
+        """
+        Initilize the road iamge loading iterators
+
+        :param directory:               root absolute directory
+        :param image_data_generator:    potential generator (for translation and etc)
+        :param classes:                 number of class
+        :param ratio:                   patch size from original image
+        :param data_folder:              image folder under root absolute directory
+        :param target_size:             target patch size
+        :param color_mode:              color cov_mode
+        :param dim_ordering:            Keras dim ordering, default as 'th' for theano
+        :param batch_size:
+        :param shuffle:                 shuffle the training data
+        :param seed:                    random seed
+        :param save_to_dir:             directory of saving
+        :param save_prefix:             saving prefix
+        :param save_format:
+        :param preload:                 preload image.  0 - no preload,
+                                                        1 - preload image,
+                                                        2 - preload batch
+        """
+        # Check validity of input
+        if dim_ordering == 'default':
+            dim_ordering = K.image_dim_ordering()
+
+        if color_mode not in {'rgb', 'greyscale'}:
+            raise ValueError('Invalid color cov_mode:', color_mode,
+                             '; expected "rgb" or "greyscale".')
+
+        # Properties
+        self.directory = directory
+        if image_data_generator is None:
+            image_data_generator = ImageDataGenerator()
+        self.image_data_generator = image_data_generator
+        self.target_size = tuple(target_size)
+        self.original_image_size = original_img_size
+        self.classes = classes
+        if ratio is None:
+            ratio = float(target_size[0]) / float(original_img_size[0])
+        self.ratio = ratio
+        self.stride = stride
+        self.img_dict = dict()     # hold the images being loaded
+        self.label_dict = dict()
+        self.threshold = 100
+
+        # Flags
+        self.preload = preload
+        self.color_mode = color_mode
+        self.dim_ordering = dim_ordering
+
+        # Save the patch
+        self.save_to_dir = save_to_dir
+        self.save_prefix = save_prefix
+        self.save_format = save_format
+
+        if self.color_mode == 'rgb':
+            if self.dim_ordering == 'tf':
+                self.image_shape = self.target_size + (3,)
+            else:
+                self.image_shape = (3,) + self.target_size
+        else:
+            if self.dim_ordering == 'tf':
+                self.image_shape = self.target_size + (1,)
+            else:
+                self.image_shape = (1,) + self.target_size
+
+        # Make it absolute
+        self.img_folder = os.path.join(directory, data_folder)
+        self.label_folder = os.path.join(self.img_folder, label_folder)
+        self.org_folder = os.path.join(self.img_folder, image_folder)
+
+        white_list_formats = {'png', 'jpg', 'jpeg', 'bmp', 'tiff'}
+
+        # first, count the number of samples and classes
+        self.nb_sample = 0
+
+        self.batch_array = []
+
+        self.nb_class = len(classes)
+        self.class_indices = {v: k for k, v in classes.iteritems()}
+
+        self.batch_classes = []
+        self.file_indices = []
+        dirs = (label_folder, image_folder)
+        self.label_files = []
+        self.img_files = []
+
+        for subdir in dirs:
+            file_list = []
+            subpath = os.path.join(self.img_folder, str(subdir))
+            for fname in sorted(os.listdir(subpath)):
+                if fname.lower().startswith('._'):
+                    continue
+                is_valid = False
+                for extension in white_list_formats:
+                    if fname.lower().endswith('.' + extension):
+                        file_list.append(fname)
+                        is_valid = True
+                        break
+                if is_valid:
+                    self.nb_sample += 1
+            if subdir == label_folder:
+                self.img_files = file_list
+            else:
+                self.label_files = file_list
+
+        assert len(self.label_files) == len(self.img_files)
+        self.nb_sample /= 2
+        print('Found %d images belonging to %d classes.' % (self.nb_sample, self.nb_class))
+        # Store the complete list
+
+        # second, build an index of the images in the different class subfolders
+        super(DirectoryImageLabelIterator, self).__init__(self.nb_sample, batch_size, shuffle, seed)
+        self.index_generator = self._flow_index(self.nb_sample, batch_size, shuffle, seed)
+
+    def next(self):
+        # The transformation of images is not under thread lock so it can be done in parallel
+        with self.lock:
+            index_array, current_index, current_batch_size = next(self.index_generator)
+
+        # build batch of image data
+        batch_x = np.zeros((current_batch_size,) + self.image_shape)
+        greyscale = self.color_mode == 'greyscale'
+
+        # build batch of labels
+
+        batch_y = np.zeros((current_batch_size,) + self.image_shape[:2] + (1,))
+        # print(index_array)
+        # print(self.batch_array)
+        for i, j in enumerate(index_array):
+            # get the index
+            # print(self.batch_array[j])
+            fname = self.batch_array[j][0]
+            center_x, center_y = self.batch_array[j][1]
+            x = self._load_patch(fname, center_x, center_y, greyscale,
+                                 fromdict=self.preload == 2, label=False)
+            batch_x[i] = x
+            # update self.batch_classes
+            y = self._load_patch(fname, center_x, center_y, greyscale=True,
+                                     fromdict=self.preload == 2, label=True)
+            batch_y[i] = y
+
+        if self.save_to_dir:
+            for i in range(current_batch_size):
+                res = concatenate_images(batch_x[i], batch_y[i])
+                img = array_to_img(res, self.dim_ordering, scale=True)
+                fname = '{prefix}_{index}_{hash}.{format}'.format(prefix=self.save_prefix,
+                                                                  index=current_index + i,
+                                                                  hash=np.random.randint(1e4),
+                                                                  format=self.save_format)
+                img.save(os.path.join(self.save_to_dir, fname))
+        return batch_x, batch_y
+
+    def generatelistfromtxt(self, fname):
+        if self.classes is None:
+            raise ValueError("classes should be initialized before calling")
+
+        path = fname
+        # label, photo_id, x, y
+        with(open(path, 'r')) as f:
+            file_list = [line.rstrip().split(',') for line in f]
+            f.close()
+        # load the category and generate the look up table
+        classlist = [[] for i in range(self.nb_class)]
+        for i, fname, x, y in file_list:
+            fn = os.path.join(fname.split('.')[0][-1], fname + ".jpg")
+            classlist[int(i)].append([fn, float(x), float(y)])
+        return classlist
+
+    def reset(self):
+        """
+        reset the batch_array and index
+        :return:
+        """
+        self.batch_index = 0
+        self.file_indices = []
+        self.batch_array = []
+        self.batch_classes = []
+        # Generate file indices again
+        self.file_indices = np.random.permutation((len(self.label_files)))
+        # Generate batch_array, for batch_classes, leave it to runtime generation
+        valid_patch_per_image = []
+        w, h = self.target_size[0]/2, self.target_size[1]/2
+        while w < self.original_image_size[0] - self.target_size[0]/2:
+            h = self.target_size[1]/2
+            while h < self.original_image_size[1] - self.target_size[1]/2:
+                valid_patch_per_image.append((float(w) / self.original_image_size[0],
+                                              float(h) / self.original_image_size[1]))
+                h += self.stride[1]
+            w += self.stride[0]
+        nb_per_image = len(valid_patch_per_image)
+        print('number of batch generated per image is {}'.format(nb_per_image))
+
+        for file_index in self.file_indices:
+            for center in valid_patch_per_image:
+                self.batch_array.append((self.img_files[file_index], center))
+        self.nb_batch_array = len(self.batch_array)
+
+        # Load all images
+
+        if self.preload == 2:
+            patch_dict = dict()
+            patch_label_dict = dict()
+        
+        if self.preload > 0:
+            if len(self.img_dict) == 0:
+                greyscale = self.color_mode == 'greyscale'
+                for fname in self.img_files:
+                    img = self.img_dict[fname] = self._get_image(fname, greyscale, fromdict=False)
+                    label_img = self.label_dict[fname] = self._get_image(fname, fromdict=False, label=True, greyscale=True)
+                    if self.preload == 2:
+                        for center in valid_patch_per_image:
+                            patch_dict["{}_{}_{}".format(fname, str(center[0]), str(center[1]))] = \
+                              self._load_patch_from_img(img, center[0], center[1])
+                            patch_label_dict["{}_{}_{}".format(fname, str(center[0]), str(center[1]))] = \
+                              self._load_patch_from_img(label_img, center[0], center[1])
+
+        if self.preload == 2:
+            assert len(patch_dict) == len(self.img_files) * nb_per_image
+            self.img_dict = patch_dict
+            self.label_dict = patch_label_dict
+
+    def _flow_index(self, N, batch_size=32, shuffle=False, seed=None):
+        """
+        flow for the Road extraction dataset
+        Create a random 20,000 patches data set
+
+        :param N:
+        :param batch_size:
+        :param shuffle:
+        :param seed:
+        :return:
+        """
+        # Special flow_index for the balanced training sample generation
+        # ensure self.batch_index is 0
+        self.reset()
+        while 1:
+            if seed is not None:
+                np.random.seed(seed + self.total_batches_seen)
+            if self.batch_index == 0:
+                index_array = np.arange(N)
+                if shuffle:
+                    index_array = np.random.permutation(N)
+                if N > self.nb_batch_array:
+                    index_array %= self.nb_batch_array
+
+            current_index = (self.batch_index * batch_size) % N
+            if N >= current_index + batch_size:
+                current_batch_size = batch_size
+                self.batch_index += 1
+            else:
+                current_batch_size = N - current_index
+                self.batch_index = 0
+            self.total_batches_seen += 1
+            yield (index_array[current_index: current_index + current_batch_size],
+                   current_index, current_batch_size)
+
+    def _load_patch(self, fname, center_x, center_y, greyscale=False, fromdict=False, label=False):
+        """
+        Load patches with given name and center
+
+        Parameters
+        ----------
+        fname : str         filename
+        center_x : float    normalized center, from 0 - 1
+        center_y : float    normalized center, from 0 - 1
+        greyscale : bool    True to load greyscale
+        fromdict : bool     True to load from dictionary
+        label : bool        True to load label patch,
+                            False load the image files
+
+        Returns
+        -------
+        ndarray.astype(K.floatX())  for image
+        ndarray.astype(np.uint32)   for label
+
+        """
+        if label:
+            if fromdict and self.preload == 2:
+                return self.label_dict["{}_{}_{}".format(fname, str(center_x), str(center_y))]
+            img = self._get_image(fname, greyscale=True, fromdict=self.preload == 1,
+                                  label=True,
+                                  absolute_path=os.path.join(self.label_folder, fname))
+            img = crop_img(img, center_x, center_y, ratio=self.ratio, target_size=self.target_size)
+            x = img_to_array(img, self.dim_ordering)
+            x[np.where(x <= self.threshold)] = 0
+            x[np.where(x > self.threshold)] = 1
+            x = x.astype(np.uint32)
+        else:
+            if fromdict and self.preload == 2:
+                return self.img_dict["{}_{}_{}".format(fname, str(center_x), str(center_y))]
+            img = self._get_image(fname, greyscale, self.preload == 1)
+            # ADD MORE LOGIC HERE, LOAD
+            img = crop_img(img, center_x, center_y, ratio=self.ratio, target_size=self.target_size)
+            x = img_to_array(img, dim_ordering=self.dim_ordering)
+            x = self.image_data_generator.random_transform(x)
+            x = self.image_data_generator.standardize(x)
+        return x
+
+    def _load_patch_from_img(self, img, center_x, center_y):
+        """
+        Load patch from pre-load image
+        Parameters
+        ----------
+        img : PIL image     preloaded image file
+        center_x : float    from 0-1
+        center_y : float    from 0-1
+
+        Returns
+        -------
+        ndarray
+        """
+        img = crop_img(img, center_x, center_y, ratio=self.ratio, target_size=self.target_size)
+        x = img_to_array(img, dim_ordering=self.dim_ordering)
+        x = self.image_data_generator.random_transform(x)
+        x = self.image_data_generator.standardize(x)
+        return x
+
+    def _get_image(self, fname, greyscale=True, fromdict=False, label=False, absolute_path=None):
+        """
+        Get image operation
+        Parameters
+        ----------
+        fname
+        greyscale
+
+        Returns
+        -------
+
+        """
+        if fromdict and self.preload == 1:
+            if label:
+                return self.label_dict[fname]
+            else:
+                return self.img_dict[fname]
+        else:
+            if absolute_path is None:
+                if label:
+                    return load_img(os.path.join(self.label_folder, fname), greyscale=greyscale)
+                else:
+                    return load_img(os.path.join(self.org_folder, fname), greyscale=greyscale)
+            else:
+                return load_img(absolute_path, greyscale)

@@ -53,7 +53,7 @@ def cpickle_save(data, output_file, ftype='gz'):
     return output_file
 
 
-def get_dataset_dir():
+def get_dataset_dir(filename=None):
     """
     Get current dataset directory
     :return:
@@ -61,7 +61,9 @@ def get_dataset_dir():
     # current_dir = get_project_dir()
     # return os.path.join(current_dir, 'data')
     datadir_base = os.path.expanduser(os.path.join('~', '.keras'))
-    return os.path.join(datadir_base, 'datasets')
+    if filename is None:
+        return os.path.join(datadir_base, 'datasets')
+    return os.path.join(datadir_base, 'datasets', filename)
 
 
 def get_road_image_dir():
@@ -94,16 +96,21 @@ def get_absolute_dir_project(filepath, mkDir=False):
 
 
 def get_weight_path(filename, dir='project'):
-    if dir is 'project':
+    if dir == 'project':
         path = get_absolute_dir_project('model_saved')
         return os.path.join(path, filename)
-    elif dir is 'dataset':
+    elif dir == 'dataset':
         dir_base = os.path.expanduser(os.path.join('~', '.keras'))
         dir = os.path.join(dir_base, 'models')
         if not os.path.exists(dir):
             os.mkdir(dir)
         return os.path.join(dir, filename)
-
+    elif dir == 'tensorflow':
+        dir_base = os.path.expanduser(os.path.join('~', '.keras'))
+        dir = os.path.join(dir_base, 'models', 'tensorflow')
+        if not os.path.exists(dir):
+            os.mkdir(dir)
+        return os.path.join(dir, filename)
 
 def get_plot_path(filename, dir='project'):
     if dir is 'project':

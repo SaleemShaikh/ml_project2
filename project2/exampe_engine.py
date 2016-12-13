@@ -125,7 +125,7 @@ class ExampleEngine(object):
         self.log_flag = save_log
         self.default_stdout = sys.stdout
         if logfile is None:
-            if hasattr(model, 'mode'):
+            if hasattr(model, 'cov_mode'):
                 self.logfile = os.path.join(getlogfiledir(), "{}-{}_{}.log".format(
                     self.title, model.name, self.mode))
             else:

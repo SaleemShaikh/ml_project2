@@ -94,7 +94,6 @@ def fcn_32s(input_shape, nb_class):
 
 
     img_input = Input(input_shape)
-
     # x = ZeroPadding2D()(img_input)
     x = conv_block2(img_input, 16, 3, 3, stage=1)
     x = conv_block2(x, 32, 3, 3, stage=2)
@@ -112,7 +111,7 @@ def fcn_32s(input_shape, nb_class):
     x = Deconvolution2D(3, 3, 3, output_shape=(None,) + input_shape, activation='relu', name='deconv1')(x)
     x = Convolution2D(1, 1, 1, name='predictions')(x)
     x = Reshape(input_shape[1:])(x)
-    # import keras.layers as layers
+
     x = Activation('softmax')(x)
 
     model = Model(img_input, x, name='FCN_32s')

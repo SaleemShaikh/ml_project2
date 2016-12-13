@@ -15,7 +15,7 @@ import tensorflow as tf
 
 from project2.utils.data_utils import img_crop, value_to_class, concatenate_images, label_to_img, make_img_overlay, error_rate
 from project2.tensorflow_pipeline.arial_image_load import get_data
-from tensorflow_pipeline.aerial_image_model import something, get_prediction_with_groundtruth, \
+from tensorflow_pipeline.aerial_image_model import lenet_example, get_prediction_with_groundtruth, \
     get_prediction_with_overlay
 
 NUM_EPOCHS = 5
@@ -48,7 +48,7 @@ def main(argv=None):  # pylint: disable=unused-argument
     # Get the image data and pack into data, label, size
     train_data, train_labels, train_size = get_data(TRAINING_SIZE)
 
-    train_data_node, train_labels_node, logits, loss, model = something(train_data)
+    train_data_node, train_labels_node, logits, loss, model = lenet_example(train_data)
 
     # Optimizer: set up a variable that's incremented once per batch and
     # controls the learning rate decay.
@@ -143,7 +143,6 @@ def main(argv=None):  # pylint: disable=unused-argument
                 # Save the variables to disk.
                 save_path = saver.save(s, FLAGS.train_dir + "/model.ckpt")
                 print("Model saved in file: %s" % save_path)
-
 
         print ("Running prediction on training set")
         prediction_training_dir = "predictions_training/"

@@ -42,7 +42,7 @@ class FCN32VGG:
         rgb: image batch tensor
             Image in rgb shap. Scaled to Intervall [0, 255]
         train: bool
-            Whether to build train or inference graph
+            Whether to build train or fcn4s graph
         num_classes: int
             How many classes should be predicted (by fc8)
         random_init_fc8 : bool

@@ -528,6 +528,12 @@ class RoadImageIterator(Iterator):
         self.index_generator = self._flow_index(self.nb_per_class * self.nb_class, batch_size, shuffle, seed)
 
     def next(self):
+        """
+
+        Returns
+        -------
+
+        """
         with self.lock:
             index_array, current_index, current_batch_size = next(self.index_generator)
         # The transformation of images is not under thread lock so it can be done in parallel
@@ -867,6 +873,16 @@ class DirectoryImageLabelIterator(Iterator):
         self.index_generator = self._flow_index(self.nb_sample, batch_size, shuffle, seed)
 
     def next(self):
+        """
+        Generate batch with size predefined when initializing the object
+
+        Returns
+        -------
+        .. depends on which backend (tensorflow,theano) you are using
+        batch_x : (nb_sample, .., .., ..)
+        batch_y : (nb_sample, .., .., ..)
+
+        """
         # The transformation of images is not under thread lock so it can be done in parallel
         with self.lock:
             index_array, current_index, current_batch_size = next(self.index_generator)
@@ -876,7 +892,6 @@ class DirectoryImageLabelIterator(Iterator):
         greyscale = self.color_mode == 'greyscale'
 
         # build batch of labels
-
         batch_y = np.zeros((current_batch_size,) + self.image_shape[:2] + (1,))
         # print(index_array)
         # print(self.batch_array)

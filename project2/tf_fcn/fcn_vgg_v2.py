@@ -50,13 +50,74 @@ def vgg_net(weights, image, FLAGS):
     return net
 
 
-def inference(image, keep_prob, FLAGS=None):
+def fcn32s(image, keep_prob, FLAGS=None):
     """
     Semantic segmentation network definition
     :param image: input image. Should have values in range 0-255
     :param keep_prob:
     :return:
     """
+    print("Create graph of FCN32s")
+    print("setting up vgg initialized conv layers...")
+    model_data = utils.get_model_data(FLAGS.model_dir, MODEL_URL)
+
+    mean = model_data['normalization'][0][0][0]
+    mean_pixel = np.mean(mean, axis=(0, 1))
+
+    weights = np.squeeze(model_data['layers'])
+
+    processed_image = utils.process_image(image, mean_pixel)
+
+    with tf.variable_scope("fcn4s"):
+        image_net = vgg_net(weights, processed_image, FLAGS)
+        conv_final_layer = image_net["conv5_3"]
+
+        pool5 = utils.max_pool_2x2(conv_final_layer)
+
+        W6 = utils.weight_variable([7, 7, 512, 4096], name="W6")
+        b6 = utils.bias_variable([4096], name="b6")
+        conv6 = utils.conv2d_basic(pool5, W6, b6)
+        relu6 = tf.nn.relu(conv6, name="relu6")
+        if FLAGS.debug:
+            utils.add_activation_summary(relu6)
+        relu_dropout6 = tf.nn.dropout(relu6, keep_prob=keep_prob)
+
+        # FC7
+        W7 = utils.weight_variable([1, 1, 4096, 4096], name="W7")
+        b7 = utils.bias_variable([4096], name="b7")
+        conv7 = utils.conv2d_basic(relu_dropout6, W7, b7)
+        relu7 = tf.nn.relu(conv7, name="relu7")
+        if FLAGS.debug:
+            utils.add_activation_summary(relu7)
+        relu_dropout7 = tf.nn.dropout(relu7, keep_prob=keep_prob)
+
+        # Score up layer
+        W8 = utils.weight_variable([1, 1, 4096, NUM_OF_CLASSESS], name="Score_W")
+        b8 = utils.bias_variable([NUM_OF_CLASSESS], name="Score_b")
+        conv8 = utils.conv2d_basic(relu_dropout7, W8, b8)
+
+        img_shape = tf.shape(image)
+        deconv_shape = tf.pack([img_shape[0], img_shape[1], img_shape[2], NUM_OF_CLASSESS])
+        W_t = utils.weight_variable([64, 64, NUM_OF_CLASSESS, NUM_OF_CLASSESS], name='W_t')
+        # no bias term
+        b_t = utils.bias_variable([NUM_OF_CLASSESS], name='b_t')
+        # Logits
+        conv_t = utils.conv2d_transpose_strided(conv8, W_t, b_t, output_shape=deconv_shape, stride=32)
+        # Annotation
+        annotation_pred = tf.argmax(conv_t, dimension=3, name='prediction')
+
+        return tf.expand_dims(annotation_pred, dim=3), conv_t
+
+
+
+def fcn4s(image, keep_prob, FLAGS=None):
+    """
+    Semantic segmentation network definition
+    :param image: input image. Should have values in range 0-255
+    :param keep_prob:
+    :return:
+    """
+    print("Create graph of FCN4s")
     print("setting up vgg initialized conv layers ...")
     model_data = utils.get_model_data(FLAGS.model_dir, MODEL_URL)
 
@@ -67,7 +128,7 @@ def inference(image, keep_prob, FLAGS=None):
 
     processed_image = utils.process_image(image, mean_pixel)
 
-    with tf.variable_scope("inference"):
+    with tf.variable_scope("fcn4s"):
         image_net = vgg_net(weights, processed_image, FLAGS)
         conv_final_layer = image_net["conv5_3"]
 

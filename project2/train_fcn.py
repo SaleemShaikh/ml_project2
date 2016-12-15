@@ -6,13 +6,14 @@ import os
 
 from tf_fcn.fcn32_vgg import FCN32VGG
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '2'
+os.environ['CUDA_VISIBLE_DEVICES'] = '3'
+os.environ['KERAS_BACKEND'] = 'tensorflow'
 
 import numpy as np
 import tensorflow as tf
 from project2.tf_fcn.fcn8_vgg import FCN8VGG
 from project2.tf_fcn.loss import loss as dloss
-from project2.tf_fcn.fcn_vgg_v2 import inference
+from project2.tf_fcn.fcn_vgg_v2 import fcn4s, fcn32s
 from project2.tf_fcn.utils import add_to_regularization_and_summary, add_gradient_summary, save_image
 
 from project2.utils.data_utils import DirectoryImageLabelIterator, concatenate_images
@@ -20,11 +21,12 @@ from project2.utils.io_utils import get_dataset_dir
 
 FLAGS = tf.flags.FLAGS
 tf.flags.DEFINE_integer("batch_size", "4", "batch size for training")
-tf.flags.DEFINE_string("logs_dir", "/tmp/prml2/fcn32_train_vggmodel/", "path to logs directory")
-tf.flags.DEFINE_float("learning_rate", "1e-2", "Learning rate for Adam Optimizer")
+tf.flags.DEFINE_string("logs_dir", "/home/kyu/.keras/tensorflow/fcn4s/", "path to logs directory")
+tf.flags.DEFINE_float("learning_rate", "1e-4", "Learning rate for Adam Optimizer")
 tf.flags.DEFINE_string("model_dir", "/home/kyu/.keras/models/tensorflow", "Path to vgg model mat")
 tf.flags.DEFINE_string("data_dir", get_dataset_dir('prml2'), 'path to data directory')
-tf.flags.DEFINE_bool('debug', "False", "Debug mode: True/ False")
+tf.flags.DEFINE_bool('debug', "True", "Debug mode: True/ False")
+# tf.flags.DEFINE_string('mode', "visualize", "Mode train/ test/ visualize")
 tf.flags.DEFINE_string('mode', "train", "Mode train/ test/ visualize")
 
 MAX_ITERATION = int(10e5 + 1)
@@ -75,22 +77,22 @@ def main(argv=None):
     keep_probability = tf.placeholder(tf.float32, name='keep_probability')
     image = tf.placeholder(tf.float32, shape=[None, INPUT_SIZE, INPUT_SIZE, 3], name='input_img_tensor')
     annotation = tf.placeholder(tf.int32, shape=[None, INPUT_SIZE, INPUT_SIZE, 1], name='segmentation')
-    # onehot_annotation = tf.one_hot(annotation, 2)
+    # onehot_annotation = tf.placeholder(tf.int32, shape=[None, INPUT_SIZE, INPUT_SIZE, 2], name='onehot')
 
-    # pred_annotation, logits = inference(image, keep_probability, FLAGS)
+    pred_annotation, logits = fcn4s(image, keep_probability, FLAGS)
 
 
 
     """
-    # Build VGG-FCN8
+    # Build VGG-FCN32
+    ## It seems wrongly since FCN should not implement fully-connected layers ##
     Model design is good, however, it is not compatible with this train-procedure.
     In order to preceed, it is
     """
-
-    model = FCN32VGG(vgg16_npy_path=os.path.join(FLAGS.model_dir, 'vgg16.npy'))
-    model.build(image, train=True, num_classes=NUM_OF_CLASSESS, random_init_fc8=False, debug=True)
-    pred_annotation = tf.expand_dims(model.pred_up, dim=3)
-    logits = model.upscore
+    # model = FCN32VGG(vgg16_npy_path=os.path.join(FLAGS.model_dir, 'vgg16.npy'))
+    # model.build(image, train=True, num_classes=NUM_OF_CLASSESS, random_init_fc8=False, debug=True)
+    # pred_annotation = tf.expand_dims(model.pred_up, dim=3)
+    # logits = model.upscore
 
     # from project2.tf_fcn.loss import loss
     # loss = dloss(logits, onehot_annotation, num_classes=NUM_OF_CLASSESS)
@@ -105,15 +107,14 @@ def main(argv=None):
 
     # Write the result to tensor-board
     tf.image_summary('input_image', image, max_images=2)
-    tf.image_summary('ground_truth', tf.cast(tf.mul(annotation, 255), tf.uint8), max_images=2)
-    tf.image_summary('pred_annotation', tf.cast(tf.mul(pred_annotation, 255), tf.uint8), max_images=2)
+    tf.image_summary('ground_truth', tf.cast(tf.mul(annotation, 128), tf.uint8), max_images=2)
+    tf.image_summary('pred_annotation', tf.cast(tf.abs(tf.mul(pred_annotation, 128)), tf.uint8), max_images=2)
     # tf.image_summary('ground_truth', tf.cast(annotation, tf.uint8), max_images=2)
     # tf.image_summary('pred_annotation', tf.cast(pred_annotation, tf.uint8), max_images=2)
 
     tf.scalar_summary('entropy', loss)
 
     trainable_var = tf.trainable_variables()
-
     if FLAGS.debug:
         for var in trainable_var:
             # Monitor the regularization and summary
@@ -132,13 +133,21 @@ def main(argv=None):
                                             batch_size=FLAGS.batch_size,
                                             target_size=(INPUT_SIZE, INPUT_SIZE),
                                             )
+    # valid_itr = DirectoryImageLabelIterator(FLAGS.data_dir, None, stride=(128, 128),
+    #                                         dim_ordering='tf',
+    #                                         data_folder='massachuttes',
+    #                                         image_folder='sat', label_folder='label',
+    #                                         batch_size=FLAGS.batch_size,
+    #                                         target_size=(INPUT_SIZE, INPUT_SIZE),
+    #                                         )
     valid_itr = DirectoryImageLabelIterator(FLAGS.data_dir, None, stride=(128, 128),
                                             dim_ordering='tf',
-                                            data_folder='massachuttes',
-                                            image_folder='sat', label_folder='label',
+                                            data_folder='training',
+                                            image_folder='images', label_folder='groundtruth',
                                             batch_size=FLAGS.batch_size,
                                             target_size=(INPUT_SIZE, INPUT_SIZE),
                                             )
+
 
     # Config settings
     config = tf.ConfigProto()
@@ -153,13 +162,18 @@ def main(argv=None):
     sess.run(tf.global_variables_initializer())
     ckpt = tf.train.get_checkpoint_state(FLAGS.logs_dir)
     if ckpt and ckpt.model_checkpoint_path:
-        # saver.restore(sess, ckpt.model_checkpoint_path)
+        saver.restore(sess, ckpt.model_checkpoint_path)
         print("Model restored")
 
     if FLAGS.mode == 'train':
         for itr in xrange(MAX_ITERATION):
             train_images, train_annotations = train_itr.next()
-            feed_dict = {image: train_images, annotation: train_annotations, keep_probability: 0.85}
+            # onehot_train = tf.one_hot(train_annotations, NUM_OF_CLASSESS)
+            feed_dict = {image: train_images,
+                         annotation: train_annotations,
+                         # onehot_annotation: onehot_train,
+                         keep_probability: 0.85}
+            # feed_dict = {image: train_images, annotation: train_annotations, keep_probability: 0.85}
             sess.run(train_op, feed_dict=feed_dict)
 
             if itr % 10 == 0:

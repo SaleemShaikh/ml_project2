@@ -369,6 +369,14 @@ class ExampleEngine(object):
                         hist[n].append(float(val))
         return hist
 
+    def save_model_json(self):
+        # TODO To implement the model loading to json file
+        self.model.to_json()
+
+    def load_model_from_json(self):
+        # TODO To implement the model loading process
+        raise NotImplementedError
+
 
 class CVEngine(ExampleEngine):
 

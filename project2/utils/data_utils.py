@@ -789,6 +789,7 @@ class DirectoryImageLabelIterator(Iterator):
     """
 
     def __init__(self, directory, image_data_generator,
+                 label_only=False,
                  data_folder='training', label_folder='groundtruth', image_folder='images',
                  classes={'non-road': 0, 'road': 1},
                  original_img_size=(400,400),

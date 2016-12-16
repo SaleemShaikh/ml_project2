@@ -27,7 +27,7 @@ tf.flags.DEFINE_integer("batch_size", "4", "batch size for training")
 tf.flags.DEFINE_string("logs_dir", "/home/kyu/.keras/tensorboard/fcn4s/", "path to logs directory")
 tf.flags.DEFINE_float("learning_rate", "1e-4", "Learning rate for Adam Optimizer")
 tf.flags.DEFINE_string("model_dir", "/home/kyu/.keras/models/tensorflow", "Path to vgg model mat")
-tf.flags.DEFINE_string('logs_dir_finetune', '/home/kyu/.keras/tensorboard/fcn4s_finetune_5000/', 'Finetune log path')
+tf.flags.DEFINE_string('logs_dir_finetune', '/home/kyu/.keras/tensorboard/fcn4s_finetune_5000_newdata/', 'Finetune log path')
 tf.flags.DEFINE_string("data_dir", get_dataset_dir('prml2'), 'path to data directory')
 tf.flags.DEFINE_bool('debug', "True", "Debug mode: True/ False")
 # tf.flags.DEFINE_string('mode', "visualize", "Mode train/ test/ visualize")
@@ -65,20 +65,31 @@ def train(loss, var):
 
 
 def main(argv=None):
+    # TODO 1. Exhaust the revised model to converge on the complete training data set
+    # TODO 2. Use the converged model, further exhaust on the data with run-time augmentation
+    # TODO 3. With saving of Fully Exhausted model's training process (1000 iter per save),
+    # TODO    generate the predictions on training set and testing set. Make the submission to
+    # TODO    see the differences in F1 scores
+    # TODO 4. Implement native F1 score in current FCN training process
+    # TODO 5.
     """
     Adapt from
         References: https://github.com/shekkizh/FCN.tensorflow/blob/master/FCN.py
 
     And this follows the standard training procedure of tensorflow
 
-    Parameters
-    ----------
-    argv
-
-    Returns
-    -------
+    Update 2016.12.16
+        Finetune:
+            converged model produce worse result due to two reason:
+                0. Bugs in DirectoryIterator, only part of the training data is used
+                1. Overfitting on the specific sub-sample of training data set
+            Based on the Histogram of Gradient, the model is fully converged around Iterations 5000,
+            for partial data.
+            Comparing the result with not fully converged model, it indicates that the earlier model
+             performs better actually.
 
     """
+
     # print flags:
     print(FLAGS.__dict__)
 
@@ -187,14 +198,14 @@ def main(argv=None):
             tf.gfile.DeleteRecursively(FLAGS.plot_dir)
         tf.gfile.MakeDirs(FLAGS.plot_dir)
         gen = ImageDataGenerator(
-            # rotation_range=0.2,
-            # width_shift_range=0.1,
-            # height_shift_range=0.1,
-            # horizontal_flip=True,
-            # vertical_flip=True,
-            # dim_ordering='tf'
+            rotation_range=0.5,
+            width_shift_range=0.2,
+            height_shift_range=0.2,
+            horizontal_flip=True,
+            vertical_flip=True,
+            dim_ordering='tf'
         )
-        train_itr = DirectoryImageLabelIterator(FLAGS.data_dir, None, stride=(128, 128),
+        train_itr = DirectoryImageLabelIterator(FLAGS.data_dir, gen, stride=(128, 128),
                                                 dim_ordering='tf',
                                                 data_folder='training',
                                                 image_folder='images', label_folder='groundtruth',
@@ -285,7 +296,7 @@ def main(argv=None):
                     print("Step: %d, Train_loss:%g" % (itr, train_loss))
                     summary_writer.add_summary(summary_str, itr)
 
-                if itr % 500 == 0:
+                if itr % 50 == 0:
                     valid_images, valid_annotations = valid_itr.next()
                     valid_loss, val_summary_str = sess.run([loss, val_summary_op],
                                                            feed_dict={image: valid_images,
@@ -293,7 +304,10 @@ def main(argv=None):
                                                                       keep_probability: 1.0})
                     print("%s ---> Validation_loss: %g" % (datetime.datetime.now(), valid_loss))
                     summary_writer.add_summary(val_summary_str, itr)
+
+                if itr % 1000 == 0:
                     saver.save(sess, FLAGS.logs_dir_finetune + "model.ckpt", itr)
+
         except KeyboardInterrupt:
             print("Stop finetune and save the model")
             saver.save(sess, FLAGS.logs_dir + "model.ckpt", itr)
@@ -313,8 +327,9 @@ def main(argv=None):
             print("Saved image: %d" % itr)
 
     elif FLAGS.mode == 'test':
-        MAX_ITERATION = 100
-        for itr in xrange(MAX_ITERATION):
+        """ Test the iterator and save the generated patches """
+        max_iteration = 100
+        for itr in xrange(max_iteration):
             train_images, train_annotations = train_itr.next()
 
 if __name__ == '__main__':

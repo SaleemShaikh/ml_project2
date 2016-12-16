@@ -29,11 +29,11 @@ from project2.utils.io_utils import get_dataset_dir
 FLAGS = tf.flags.FLAGS
 tf.flags.DEFINE_integer("batch_size", "10", "batch size for visualization")
 tf.flags.DEFINE_string("logs_dir", "/home/kyu/.keras/tensorboard/fcn4s_visual/", "path to logs directory")
-tf.flags.DEFINE_string("plot_dir", "/home/kyu/Dropbox/git/ml_project2/fcn4s_visual/plot_finetune_2000", "path to plots")
+tf.flags.DEFINE_string("plot_dir", "/home/kyu/Dropbox/git/ml_project2/fcn4s_visual/plot_finetune_4000", "path to plots")
 tf.flags.DEFINE_float("learning_rate", "1e-4", "Learning rate for Adam Optimizer")
 tf.flags.DEFINE_string("model_dir", "/home/kyu/.keras/models/tensorflow", "Path to vgg model mat")
 # tf.flags.DEFINE_string("fcn_dir", "/home/kyu/.keras/tensorboard/fcn4s_finetune", "Path to FCN model")
-tf.flags.DEFINE_string("fcn_dir", "/home/kyu/.keras/tensorboard/fcn4s_finetune_test", "Path to FCN model")
+tf.flags.DEFINE_string("fcn_dir", "/home/kyu/.keras/tensorboard/fcn4s_finetune_5000_newdata", "Path to FCN model")
 tf.flags.DEFINE_string("data_dir", get_dataset_dir('prml2'), 'path to data directory')
 tf.flags.DEFINE_bool('debug', "True", "Debug mode: True/ False")
 tf.flags.DEFINE_string('mode', "predict", "Mode predict/ test/ visualize")
@@ -49,17 +49,13 @@ def main(argv=None):
     """
     Adapt and inspired by train_fcn.py
 
-    Parameters
-    ----------
-    argv
-
-    Returns
-    -------
+    Update 2016.12.16
+        Implement the visualize pipeline to generate concatenated images
+            Concat = [ground truth, image, predicted image]
 
     """
 
     # Make dir of plot dir
-
     if tf.gfile.Exists(FLAGS.plot_dir):
         tf.gfile.DeleteRecursively(FLAGS.plot_dir)
     tf.gfile.MakeDirs(FLAGS.plot_dir)
@@ -90,16 +86,16 @@ def main(argv=None):
 
     print("setting up summary op ...")
     # summary_op = tf.merge_all_summaries()
-
-    valid_itr = DirectoryImageLabelIterator(FLAGS.data_dir, None, stride=(128, 128),
-                                            dim_ordering='tf',
-                                            data_folder='training',
-                                            image_folder='images', label_folder='groundtruth',
-                                            batch_size=FLAGS.batch_size,
-                                            target_size=(INPUT_SIZE, INPUT_SIZE),
-                                            shuffle=False,
-                                            rescale=False
-                                            )
+    if FLAGS.mode == 'visualize':
+        valid_itr = DirectoryImageLabelIterator(FLAGS.data_dir, None, stride=(128, 128),
+                                                dim_ordering='tf',
+                                                data_folder='training',
+                                                image_folder='images', label_folder='groundtruth',
+                                                batch_size=FLAGS.batch_size,
+                                                target_size=(INPUT_SIZE, INPUT_SIZE),
+                                                shuffle=False,
+                                                rescale=False
+                                                )
 
     # Config settings
     config = tf.ConfigProto()
@@ -143,8 +139,12 @@ def main(argv=None):
                 save_image(pred[itr].astype(np.uint8), FLAGS.plot_dir, name="pred_" + str(index))
                 print("Saved image: %d" % index)
                 index += 1
+    if FLAGS.mode == 'predict':
+        # Create prediction pipeline
+        index = 0
 
-            # break
+
+
 
 if __name__ == '__main__':
     tf.app.run()

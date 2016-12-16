@@ -780,6 +780,12 @@ class DirectoryImageLabelIterator(Iterator):
 
     Specific targeted at Segmentation problems
 
+    Update 2016.12.16
+        Fix the bug of the iterator cannot generate patches from all images.
+        Implement the flag of "no_label", to generate Image patches through all test data
+        Fix the save_to_dir function (by making sure the image is converted to float32 before rescale
+        Implement the patch_size
+
     """
 
     def __init__(self, directory, image_data_generator,
@@ -789,6 +795,7 @@ class DirectoryImageLabelIterator(Iterator):
                  stride=(32,32),
                  ratio=None,
                  rescale=False,
+                 patch_size=(64,64),    # TODO Differentiate patch_size and target size
                  target_size=(64, 64), color_mode='rgb',
                  dim_ordering='default',
                  batch_size=32,
@@ -804,11 +811,11 @@ class DirectoryImageLabelIterator(Iterator):
         :param classes:                 number of class
         :param ratio:                   patch size from original image
         :param rescale:                 True to rescale instead of crop to the image size
-        :param data_folder:              image folder under root absolute directory
+        :param data_folder:             image folder under root absolute directory
         :param target_size:             target patch size
         :param color_mode:              color cov_mode
         :param dim_ordering:            Keras dim ordering, default as 'th' for theano
-        :param batch_size:
+        :param batch_size:              nb of image generated per batch
         :param shuffle:                 shuffle the training data
         :param seed:                    random seed
         :param save_to_dir:             directory of saving

@@ -789,14 +789,13 @@ class DirectoryImageLabelIterator(Iterator):
     """
 
     def __init__(self, directory, image_data_generator,
-                 label_only=False,
+                 image_only=False,
                  data_folder='training', label_folder='groundtruth', image_folder='images',
                  classes={'non-road': 0, 'road': 1},
                  original_img_size=(400,400),
                  stride=(32,32),
                  ratio=None,
                  rescale=False,
-                 patch_size=(64,64),    # TODO Differentiate patch_size and target size
                  target_size=(64, 64), color_mode='rgb',
                  dim_ordering='default',
                  batch_size=32,
@@ -809,7 +808,8 @@ class DirectoryImageLabelIterator(Iterator):
 
         :param directory:               root absolute directory
         :param image_data_generator:    potential generator (for translation and etc)
-        :param classes:                 number of class
+        :param image_only:              bool, True to load image only
+        :param classes:                 dict{'class_label': index}
         :param ratio:                   patch size from original image
         :param rescale:                 True to rescale instead of crop to the image size
         :param data_folder:             image folder under root absolute directory
@@ -855,6 +855,7 @@ class DirectoryImageLabelIterator(Iterator):
         self.color_mode = color_mode
         self.dim_ordering = dim_ordering
         self.rescale = rescale
+        self.image_only = image_only
 
         # Save the patch
         self.save_to_dir = save_to_dir
@@ -912,8 +913,13 @@ class DirectoryImageLabelIterator(Iterator):
             else:
                 self.label_files = file_list
 
-        assert len(self.label_files) == len(self.img_files)
-        self.nb_sample /= 2
+        if len(self.label_files) == len(self.img_files):
+            self.nb_sample /= 2
+        elif len(self.img_files) > len(self.label_files):
+            self.image_only = True
+        else:
+            raise ValueError("Label files are more than image files, check the folder")
+
         print('Found %d images belonging to %d classes.' % (self.nb_sample, self.nb_class))
         # Store the complete list
 
@@ -939,9 +945,9 @@ class DirectoryImageLabelIterator(Iterator):
         # build batch of image data
         batch_x = np.zeros((current_batch_size,) + self.image_shape)
         greyscale = self.color_mode == 'greyscale'
-
-        # build batch of labels
-        batch_y = np.zeros((current_batch_size,) + self.image_shape[:2] + (1,))
+        if not self.image_only:
+            # build batch of labels
+            batch_y = np.zeros((current_batch_size,) + self.image_shape[:2] + (1,))
         # print(index_array)
         # print(self.batch_array)
         for i, j in enumerate(index_array):
@@ -950,29 +956,38 @@ class DirectoryImageLabelIterator(Iterator):
             fname = self.batch_array[j][0]
             if self.rescale:
                 x = self._get_image(fname, label=False, greyscale=greyscale, target_size=self.target_size)
-                y = self._get_image(fname, label=True, greyscale=True, target_size=self.target_size)
-                y = np.expand_dims(y, 2)
+                if not self.image_only:
+                    y = self._get_image(fname, label=True, greyscale=True, target_size=self.target_size)
+                    y = np.expand_dims(y, 2)
             else:
                 center_x, center_y = self.batch_array[j][1]
                 x = self._load_patch(fname, center_x, center_y, greyscale,
                                      fromdict=self.preload == 2, label=False)
 
-                # update self.batch_classes
-                y = self._load_patch(fname, center_x, center_y, greyscale=True,
-                                         fromdict=self.preload == 2, label=True)
+                if not self.image_only:
+                    # update self.batch_classes
+                    y = self._load_patch(fname, center_x, center_y, greyscale=True,
+                                             fromdict=self.preload == 2, label=True)
             batch_x[i] = x
-            batch_y[i] = y
+            if not self.image_only:
+                batch_y[i] = y
 
         if self.save_to_dir:
             for i in range(current_batch_size):
-                res = concatenate_images(batch_x[i], batch_y[i])
+                if not self.image_only:
+                    res = concatenate_images(batch_x[i], batch_y[i])
+                else:
+                    res = batch_x[i]
                 img = array_to_img(res, self.dim_ordering, scale=True)
                 fname = '{prefix}_{index}_{hash}.{format}'.format(prefix=self.save_prefix,
                                                                   index=current_index + i,
                                                                   hash=np.random.randint(1e4),
                                                                   format=self.save_format)
                 img.save(os.path.join(self.save_to_dir, fname))
-        return batch_x, batch_y
+        if self.image_only:
+            return batch_x
+        else:
+            return batch_x, batch_y
 
     def generatelistfromtxt(self, fname):
         if self.classes is None:
@@ -1007,9 +1022,9 @@ class DirectoryImageLabelIterator(Iterator):
         # Generate batch_array, for batch_classes, leave it to runtime generation
         valid_patch_per_image = []
         w, h = self.target_size[0]/2, self.target_size[1]/2
-        while w < self.original_image_size[0] - self.target_size[0]/2:
+        while w <= self.original_image_size[0] - self.target_size[0]/2:
             h = self.target_size[1]/2
-            while h < self.original_image_size[1] - self.target_size[1]/2:
+            while h <= self.original_image_size[1] - self.target_size[1]/2:
                 valid_patch_per_image.append((float(w) / self.original_image_size[0],
                                               float(h) / self.original_image_size[1]))
                 h += self.stride[1]
@@ -1174,3 +1189,63 @@ class DirectoryImageLabelIterator(Iterator):
                                     target_size=target_size)
             else:
                 return load_img(absolute_path, greyscale, target_size=target_size)
+
+    @staticmethod
+    def concatenate_batches(batches, index_lim, dim_ordering='tf', nb_image_per_batch=1):
+        """
+        To use this concatenate function, make sure the following requirements:
+            1. ratio * original_image_width/height = target_size_width/height
+            2. 1 / ratio = int
+            3. stride_w/h = ratio * original_image_w/h
+        This function is composed basically for the submission files
+
+        Parameters
+        ----------
+        batches: [ndarray]      list or tuple of batches to be concatenated
+                                Satisfies the requirement
+                                In tensorflow, [ (nb_patches_per_image, patch_w, patch_h, channel)]
+        index_lim : [int, int]  Index limit for x and y direction.
+        Returns
+        -------
+        concate_batch           In tensorflow, [ (patch_w * nb_patches_per_image/2,
+                                                  patch_h * nb_patches_per_image/2)
+                                               ]
+        """
+        result_list = []
+        if len(index_lim) != 2:
+            raise ValueError("Only accept (x,y) index lim")
+        for batch in batches:
+            b_shape = batch.shape
+            nb_patch = b_shape[0]
+            if nb_patch % nb_image_per_batch != 0:
+                raise ValueError("Make sure batches are complete ")
+            _result_list = []
+            for index in range(nb_patch / nb_image_per_batch):
+                _batches = batch[index * nb_image_per_batch:nb_image_per_batch * (index + 1)]
+                if dim_ordering == 'tf':
+                    if len(b_shape) == 4: # RGB
+                        result = np.zeros(shape=(np.sqrt(nb_image_per_batch) * b_shape[1],
+                                                 np.sqrt(nb_image_per_batch) * b_shape[2],
+                                                 b_shape[3]))
+                    else: # Greyscale
+                        result = np.zeros(shape=(np.sqrt(nb_image_per_batch) * b_shape[1],
+                                                 np.sqrt(nb_image_per_batch) * b_shape[2]
+                                                 ))
+                    img_w = b_shape[1]
+                    img_h = b_shape[2]
+                else:
+                    raise NotImplementedError
+
+                for i in range(index_lim[0]):
+                    for j in range(index_lim[1]):
+                        result[
+                            img_w * i: img_w * (i+1),
+                            img_h * j: img_h * (j+1),
+                            :
+                        ] = _batches[index_lim[1] * j + i]
+                if result.dtype == np.uint8:
+                    result = img_to_array(result, 'tf')
+                _result_list.append(result)
+            result_list.append(_result_list)
+
+        return result_list

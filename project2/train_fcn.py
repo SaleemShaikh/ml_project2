@@ -24,15 +24,21 @@ from project2.utils.io_utils import get_dataset_dir
 
 FLAGS = tf.flags.FLAGS
 tf.flags.DEFINE_integer("batch_size", "4", "batch size for training")
-tf.flags.DEFINE_string("logs_dir", "/home/kyu/.keras/tensorboard/fcn4s/", "path to logs directory")
+tf.flags.DEFINE_string("logs_dir", "/home/kyu/.keras/tensorboard/fcn32s/", "path to logs directory")
 tf.flags.DEFINE_float("learning_rate", "1e-4", "Learning rate for Adam Optimizer")
 tf.flags.DEFINE_string("model_dir", "/home/kyu/.keras/models/tensorflow", "Path to vgg model mat")
-tf.flags.DEFINE_string('logs_dir_finetune', '/home/kyu/.keras/tensorboard/fcn4s_finetune_5000_newdata/', 'Finetune log path')
+
+tf.flags.DEFINE_string('mode', "finetune", "Mode train/ test/ finetune/ visualize")
+tf.flags.DEFINE_bool('augmentation', 'False', 'Data runtime augmentation mode : True/ False')
+tf.flags.DEFINE_string('logs_dir_finetune',
+                       '/home/kyu/.keras/tensorboard/fcn32s_finetune_5000/',
+                       'Finetune log path')
+
 tf.flags.DEFINE_string("data_dir", get_dataset_dir('prml2'), 'path to data directory')
+
 tf.flags.DEFINE_bool('debug', "True", "Debug mode: True/ False")
 # tf.flags.DEFINE_string('mode', "visualize", "Mode train/ test/ visualize")
-tf.flags.DEFINE_string('mode', "finetune", "Mode train/ test/ finetune/ visualize")
-tf.flags.DEFINE_string("plot_dir", "/home/kyu/Dropbox/git/ml_project2/fcn4s_visual/plot_data_dir_test",
+tf.flags.DEFINE_string("plot_dir", "/home/kyu/Dropbox/git/ml_project2/fcn32s_visual/plot_data_dir_test",
                        "path to plots")
 MAX_ITERATION = int(5000 + 1)
 NUM_OF_CLASSESS = 2
@@ -99,7 +105,7 @@ def main(argv=None):
     annotation = tf.placeholder(tf.int32, shape=[None, INPUT_SIZE, INPUT_SIZE, 1], name='segmentation')
     # onehot_annotation = tf.placeholder(tf.int32, shape=[None, INPUT_SIZE, INPUT_SIZE, 2], name='onehot')
 
-    pred_annotation, logits = fcn4s(image, keep_probability, FLAGS)
+    pred_annotation, logits = fcn32s(image, keep_probability, FLAGS)
 
 
 
@@ -177,15 +183,23 @@ def main(argv=None):
                                                 )
 
     elif FLAGS.mode == 'finetune':
-        gen = ImageDataGenerator(
-            # rotation_range=0.2,
-            # width_shift_range=0.1,
-            # height_shift_range=0.1,
-            # horizontal_flip=True,
-            # vertical_flip=True,
-            # dim_ordering='tf'
-            )
-        train_itr = DirectoryImageLabelIterator(FLAGS.data_dir, None, stride=(128, 128),
+        if FLAGS.augmentation:
+            rotation = 0.5
+            shift_range = 0.2
+            print("Enable real time data augmentation with rotation {} shift range {}".format(
+                rotation, shift_range
+            ))
+            gen = ImageDataGenerator(
+                rotation_range=rotation,
+                width_shift_range=shift_range,
+                height_shift_range=shift_range,
+                horizontal_flip=True,
+                vertical_flip=True,
+                dim_ordering='tf'
+                )
+        else:
+            gen = None
+        train_itr = DirectoryImageLabelIterator(FLAGS.data_dir, gen, stride=(128, 128),
                                                 dim_ordering='tf',
                                                 data_folder='training',
                                                 image_folder='images', label_folder='groundtruth',

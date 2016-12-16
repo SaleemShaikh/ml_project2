@@ -377,6 +377,7 @@ def load_img(path, greyscale=False, target_size=None):
     return img
 
 
+
 def get_binary_label_from_image(img, center_x, center_y, threshold=0):
     w, h = img.size
     d = img.getpixel((center_x * w, center_y * h))
@@ -897,6 +898,8 @@ class DirectoryImageLabelIterator(Iterator):
         for subdir in dirs:
             file_list = []
             subpath = os.path.join(self.img_folder, str(subdir))
+            if not os.path.exists(subpath):
+                continue
             for fname in sorted(os.listdir(subpath)):
                 if fname.lower().startswith('._'):
                     continue
@@ -909,9 +912,12 @@ class DirectoryImageLabelIterator(Iterator):
                 if is_valid:
                     self.nb_sample += 1
             if subdir == label_folder:
-                self.img_files = file_list
-            else:
                 self.label_files = file_list
+            else:
+                self.img_files = file_list
+
+        if self.image_only:
+            self.label_files = []
 
         if len(self.label_files) == len(self.img_files):
             self.nb_sample /= 2
@@ -926,6 +932,7 @@ class DirectoryImageLabelIterator(Iterator):
         # second, build an index of the images in the different class subfolders
         super(DirectoryImageLabelIterator, self).__init__(self.nb_sample, batch_size, shuffle, seed)
         self.index_generator = self._flow_index(self.nb_sample, batch_size, shuffle, seed)
+        self.nb_batch_array = self.nb_sample
 
     def next(self):
         """
@@ -1006,7 +1013,7 @@ class DirectoryImageLabelIterator(Iterator):
         return classlist
 
     def has_next_before_reset(self):
-        return self.batch_index * self.batch_size < self.nb_sample
+        return self.batch_index * self.batch_size < self.nb_batch_array
 
     def reset(self):
         """
@@ -1018,17 +1025,20 @@ class DirectoryImageLabelIterator(Iterator):
         self.batch_array = []
         self.batch_classes = []
         # Generate file indices again
-        self.file_indices = np.random.permutation((len(self.label_files)))
+        self.file_indices = np.random.permutation((len(self.img_files)))
         # Generate batch_array, for batch_classes, leave it to runtime generation
         valid_patch_per_image = []
-        w, h = self.target_size[0]/2, self.target_size[1]/2
-        while w <= self.original_image_size[0] - self.target_size[0]/2:
-            h = self.target_size[1]/2
-            while h <= self.original_image_size[1] - self.target_size[1]/2:
-                valid_patch_per_image.append((float(w) / self.original_image_size[0],
-                                              float(h) / self.original_image_size[1]))
-                h += self.stride[1]
-            w += self.stride[0]
+        patch_w = self.original_image_size[0]*self.ratio
+        patch_h = self.original_image_size[1]*self.ratio
+        x = patch_w / 2
+        y = patch_h / 2
+        while x <= self.original_image_size[0] - patch_w/2:
+            y = patch_h / 2
+            while y <= self.original_image_size[1] - patch_h/2:
+                valid_patch_per_image.append((float(x) / self.original_image_size[0],
+                                              float(y) / self.original_image_size[1]))
+                y += self.stride[1]
+            x += self.stride[0]
         nb_per_image = len(valid_patch_per_image)
         print('number of batch generated per image is {}'.format(nb_per_image))
 
@@ -1036,8 +1046,6 @@ class DirectoryImageLabelIterator(Iterator):
             for center in valid_patch_per_image:
                 self.batch_array.append((self.img_files[file_index], center))
         self.nb_batch_array = len(self.batch_array)
-
-
         # Load all images
 
         if self.preload == 2:
@@ -1215,7 +1223,11 @@ class DirectoryImageLabelIterator(Iterator):
         if len(index_lim) != 2:
             raise ValueError("Only accept (x,y) index lim")
         for batch in batches:
-            b_shape = batch.shape
+            if isinstance(batch, list):
+                b_shape = (len(batch),) + batch[0].shape
+            else:
+                b_shape = batch.shape
+
             nb_patch = b_shape[0]
             if nb_patch % nb_image_per_batch != 0:
                 raise ValueError("Make sure batches are complete ")
@@ -1229,8 +1241,8 @@ class DirectoryImageLabelIterator(Iterator):
                                                  b_shape[3]))
                     else: # Greyscale
                         result = np.zeros(shape=(np.sqrt(nb_image_per_batch) * b_shape[1],
-                                                 np.sqrt(nb_image_per_batch) * b_shape[2]
-                                                 ))
+                                                 np.sqrt(nb_image_per_batch) * b_shape[2])
+                                          )
                     img_w = b_shape[1]
                     img_h = b_shape[2]
                 else:

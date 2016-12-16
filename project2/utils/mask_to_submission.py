@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
-
+import matplotlib
+matplotlib.use('Agg')
 import os
 import numpy as np
 import matplotlib.image as mpimg
 import re
+import glob
+from project2.utils.data_utils import img_to_array, load_img
+from project2.tf_fcn.utils import save_image
+from project2.utils.data_utils import DirectoryImageLabelIterator
 
 foreground_threshold = 0.25 # percentage of pixels > 1 required to assign a foreground label to a patch
 
@@ -36,11 +41,50 @@ def masks_to_submission(submission_filename, *image_filenames):
             f.writelines('{}\n'.format(s) for s in mask_to_submission_strings(fn))
 
 
+def collect_and_concat_into_images(path, nb_patch_per_image, target_size=None, dim_ordering='tf', prefix='pred'):
+    """
+    Collect the file and concatenate patches into image
+
+    Parameters
+    ----------
+    path: str
+    prefix
+
+    Returns
+    -------
+
+    """
+    flist = glob.glob(os.path.join(path, prefix + "*.png"))
+    img_list = []
+    for fname in flist:
+        img = load_img(fname, target_size=target_size)
+        img_list.append(img_to_array(img, 'tf'))
+
+    res_list = DirectoryImageLabelIterator.concatenate_batches((img_list,), (3,3),
+                                                               nb_image_per_batch=nb_patch_per_image)
+    return res_list
+
+
+def create_concat_test():
+    """
+    Create concatenated test files
+    Returns
+    -------
+
+    """
+    path = '/home/kyu/Dropbox/git/ml_project2/fcn4s_visual/plot_finetune_5000_test'
+    save_path = os.path.join(path, 'complete_test_label')
+    img_list = collect_and_concat_into_images(path, nb_patch_per_image=9, target_size=(200, 200))
+    for ind, img in enumerate(img_list[0]):
+        save_image(img, save_path, 'pred_complete_{}'.format(str(ind)))
+
+
 if __name__ == '__main__':
-    submission_filename = 'dummy_submission.csv'
-    image_filenames = []
-    for i in range(1, 51):
-        image_filename = 'training/groundtruth/satImage_' + '%.3d' % i + '.png'
-        print image_filename
-        image_filenames.append(image_filename)
-    masks_to_submission(submission_filename, *image_filenames)
+    # submission_filename = 'dummy_submission.csv'
+    # image_filenames = []
+    # for i in range(1, 51):
+    #     image_filename = 'training/groundtruth/satImage_' + '%.3d' % i + '.png'
+    #     print image_filename
+    #     image_filenames.append(image_filename)
+    # masks_to_submission(submission_filename, *image_filenames)
+    create_concat_test()

@@ -6,7 +6,7 @@ import os
 
 from tf_fcn.fcn32_vgg import FCN32VGG
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '3'
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 os.environ['KERAS_BACKEND'] = 'tensorflow'
 os.environ['KERAS_IMAGE_DIM_ORDERING'] = 'tf'
 
@@ -24,14 +24,14 @@ from project2.utils.io_utils import get_dataset_dir
 
 FLAGS = tf.flags.FLAGS
 tf.flags.DEFINE_integer("batch_size", "4", "batch size for training")
-tf.flags.DEFINE_string("logs_dir", "/home/kyu/.keras/tensorboard/fcn32s/", "path to logs directory")
+tf.flags.DEFINE_string("logs_dir", "/home/kyu/.keras/tensorboard/fcn4s_clean/", "path to logs directory")
 tf.flags.DEFINE_float("learning_rate", "1e-4", "Learning rate for Adam Optimizer")
 tf.flags.DEFINE_string("model_dir", "/home/kyu/.keras/models/tensorflow", "Path to vgg model mat")
 
-tf.flags.DEFINE_string('mode', "finetune", "Mode train/ test/ finetune/ visualize")
+tf.flags.DEFINE_string('mode', "train", "Mode train/ test/ finetune/ visualize")
 tf.flags.DEFINE_bool('augmentation', 'False', 'Data runtime augmentation mode : True/ False')
 tf.flags.DEFINE_string('logs_dir_finetune',
-                       '/home/kyu/.keras/tensorboard/fcn32s_finetune_5000/',
+                       '/home/kyu/.keras/tensorboard/fcn4s_finetune_5000/',
                        'Finetune log path')
 
 tf.flags.DEFINE_string("data_dir", get_dataset_dir('prml2'), 'path to data directory')
@@ -40,7 +40,7 @@ tf.flags.DEFINE_bool('debug', "True", "Debug mode: True/ False")
 # tf.flags.DEFINE_string('mode', "visualize", "Mode train/ test/ visualize")
 tf.flags.DEFINE_string("plot_dir", "/home/kyu/Dropbox/git/ml_project2/fcn32s_visual/plot_data_dir_test",
                        "path to plots")
-MAX_ITERATION = int(5000 + 1)
+MAX_ITERATION = int(50000 + 1)
 NUM_OF_CLASSESS = 2
 IMAGE_SIZE = 400
 INPUT_SIZE = 224
@@ -71,9 +71,9 @@ def train(loss, var):
 
 
 def main(argv=None):
-    # TODO 1. Exhaust the revised model to converge on the complete training data set
+    # DONE 1. Exhaust the revised model to converge on the complete training data set
     # TODO 2. Use the converged model, further exhaust on the data with run-time augmentation
-    # TODO 3. With saving of Fully Exhausted model's training process (1000 iter per save),
+    # DONE 3. With saving of Fully Exhausted model's training process (1000 iter per save),
     # TODO    generate the predictions on training set and testing set. Make the submission to
     # TODO    see the differences in F1 scores
     # TODO 4. Implement native F1 score in current FCN training process
@@ -105,7 +105,7 @@ def main(argv=None):
     annotation = tf.placeholder(tf.int32, shape=[None, INPUT_SIZE, INPUT_SIZE, 1], name='segmentation')
     # onehot_annotation = tf.placeholder(tf.int32, shape=[None, INPUT_SIZE, INPUT_SIZE, 2], name='onehot')
 
-    pred_annotation, logits = fcn32s(image, keep_probability, FLAGS)
+    pred_annotation, logits = fcn4s(image, keep_probability, FLAGS)
 
 
 
@@ -238,11 +238,12 @@ def main(argv=None):
     #                                         batch_size=FLAGS.batch_size,
     #                                         target_size=(INPUT_SIZE, INPUT_SIZE),
     #                                         )
-    valid_itr = DirectoryImageLabelIterator(FLAGS.data_dir, None, stride=(128, 128),
+    valid_itr = DirectoryImageLabelIterator(FLAGS.data_dir, None, stride=(200, 200),
                                             dim_ordering='tf',
                                             data_folder='training',
                                             image_folder='images', label_folder='groundtruth',
                                             batch_size=FLAGS.batch_size,
+                                            ratio=0.5,
                                             target_size=(INPUT_SIZE, INPUT_SIZE),
                                             )
 
@@ -283,11 +284,13 @@ def main(argv=None):
                     print("Step: %d, Train_loss:%g" % (itr, train_loss))
                     summary_writer.add_summary(summary_str, itr)
 
-                if itr % 500 == 0:
+                if itr % 50 == 0:
                     valid_images, valid_annotations = valid_itr.next()
-                    valid_loss = sess.run(loss, feed_dict={image: valid_images, annotation: valid_annotations,
+                    valid_loss, val_summary_str = sess.run([val_loss, val_summary_op], feed_dict={image: valid_images, annotation: valid_annotations,
                                                            keep_probability: 1.0})
                     print("%s ---> Validation_loss: %g" % (datetime.datetime.now(), valid_loss))
+                    summary_writer.add_summary(val_summary_str, itr)
+                if itr % 10000 == 0:
                     saver.save(sess, FLAGS.logs_dir + "model.ckpt", itr)
         except KeyboardInterrupt:
             print("Stop training and save the model")

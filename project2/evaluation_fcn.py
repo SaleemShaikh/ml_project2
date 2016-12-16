@@ -29,7 +29,7 @@ from project2.utils.io_utils import get_dataset_dir
 FLAGS = tf.flags.FLAGS
 tf.flags.DEFINE_integer("batch_size", "10", "batch size for visualization")
 tf.flags.DEFINE_string("logs_dir", "/home/kyu/.keras/tensorboard/fcn4s_visual/", "path to logs directory")
-tf.flags.DEFINE_string("plot_dir", "/home/kyu/Dropbox/git/ml_project2/fcn4s_visual/plot_finetune_4000", "path to plots")
+tf.flags.DEFINE_string("plot_dir", "/home/kyu/Dropbox/git/ml_project2/fcn4s_visual/plot_finetune_5000_test", "path to plots")
 tf.flags.DEFINE_float("learning_rate", "1e-4", "Learning rate for Adam Optimizer")
 tf.flags.DEFINE_string("model_dir", "/home/kyu/.keras/models/tensorflow", "Path to vgg model mat")
 # tf.flags.DEFINE_string("fcn_dir", "/home/kyu/.keras/tensorboard/fcn4s_finetune", "Path to FCN model")
@@ -54,7 +54,6 @@ def main(argv=None):
             Concat = [ground truth, image, predicted image]
 
     """
-
     # Make dir of plot dir
     if tf.gfile.Exists(FLAGS.plot_dir):
         tf.gfile.DeleteRecursively(FLAGS.plot_dir)
@@ -96,7 +95,19 @@ def main(argv=None):
                                                 shuffle=False,
                                                 rescale=False
                                                 )
-
+    elif FLAGS.mode == 'predict':
+        valid_itr = DirectoryImageLabelIterator(FLAGS.data_dir, None, stride=(200, 200),
+                                                dim_ordering='tf',
+                                                image_only=True,
+                                                data_folder='test_set_images',
+                                                image_folder='test_sat',
+                                                batch_size=FLAGS.batch_size,
+                                                target_size=(INPUT_SIZE, INPUT_SIZE),
+                                                ratio=1./3,
+                                                original_img_size=(600,600),
+                                                shuffle=False,
+                                                rescale=False
+                                                )
     # Config settings
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
@@ -142,8 +153,32 @@ def main(argv=None):
     if FLAGS.mode == 'predict':
         # Create prediction pipeline
         index = 0
+        while valid_itr.has_next_before_reset():
+            valid_image = valid_itr.next()
+            valid_annotation = np.zeros(shape=valid_image.shape[:3] + (1,))
+            pred = sess.run(pred_annotation, feed_dict={image: valid_image,
+                                                        annotation: valid_annotation,
+                                                        keep_probability: 1.0})
 
+            valid_annotation = np.squeeze(valid_annotation, axis=3) * 255
+            pred = np.squeeze(pred, axis=3) * 255
 
+            for itr in range(FLAGS.batch_size):
+                img = valid_image[itr].astype(np.uint8)
+                pred_img = pred[itr].astype(np.uint8)
+                gt = valid_annotation[itr].astype(np.uint8)
+                pred_img_rgb = greyscale_to_rgb(pred_img, pixel_depth=1)
+                gt_rgb = greyscale_to_rgb(gt, pixel_depth=1)
+                res = np.concatenate((gt_rgb, img, pred_img_rgb), 1)
+                # res = make_img_overlay(img, pred_img, 1)
+                # res = concatenate_images(res, gt)
+                # res.save(FLAGS.plot_dir + "/overlay_" + str(index) + '.png')
+                save_image(res, FLAGS.plot_dir, name='concat_pred_' + str(index))
+                save_image(valid_image[itr].astype(np.uint8), FLAGS.plot_dir, name="inp_" + str(index))
+                save_image(valid_annotation[itr].astype(np.uint8), FLAGS.plot_dir, name="gt_" + str(index))
+                save_image(pred[itr].astype(np.uint8), FLAGS.plot_dir, name="pred_" + str(index))
+                print("Saved image: %d" % index)
+                index += 1
 
 
 if __name__ == '__main__':

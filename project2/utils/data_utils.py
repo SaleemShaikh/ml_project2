@@ -303,7 +303,20 @@ def flip_axis(x, axis):
 
 
 def array_to_img(x, dim_ordering='default', scale=True):
+    """
+    Check x to be float x
+    Parameters
+    ----------
+    x
+    dim_ordering
+    scale
+
+    Returns
+    -------
+
+    """
     from PIL import Image
+    x = x.astype(K.floatx())
     if dim_ordering == 'default':
         dim_ordering = K.image_dim_ordering()
     if dim_ordering == 'th':
@@ -422,6 +435,7 @@ class RoadImageIterator(Iterator):
 
     """
     def __init__(self, directory, image_data_generator,
+                 no_label=False,
                  data_folder='training', label_folder='groundtruth', image_folder='images',
                  classes={'non-road': 0, 'road': 1},
                  original_img_size=(400,400),
@@ -1000,6 +1014,7 @@ class DirectoryImageLabelIterator(Iterator):
                 self.batch_array.append((self.img_files[file_index], center))
         self.nb_batch_array = len(self.batch_array)
 
+
         # Load all images
 
         if self.preload == 2:
@@ -1038,6 +1053,7 @@ class DirectoryImageLabelIterator(Iterator):
         # Special flow_index for the balanced training sample generation
         # ensure self.batch_index is 0
         self.reset()
+        N = self.nb_batch_array
         while 1:
             if seed is not None:
                 np.random.seed(seed + self.total_batches_seen)

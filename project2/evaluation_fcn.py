@@ -1,6 +1,11 @@
 """
-evaluation pipeline to generate submission for Kaggle
 
+FCN evaluation pipeline to generate submission for Kaggle
+
+Evaluate FCN model based on the FCN model trained, it should process the test image
+and generate patches aligning with the same format.
+
+2016.12.15
 """
 
 import datetime
@@ -24,15 +29,15 @@ from project2.utils.io_utils import get_dataset_dir
 FLAGS = tf.flags.FLAGS
 tf.flags.DEFINE_integer("batch_size", "10", "batch size for visualization")
 tf.flags.DEFINE_string("logs_dir", "/home/kyu/.keras/tensorboard/fcn4s_visual/", "path to logs directory")
-tf.flags.DEFINE_string("plot_dir", "/home/kyu/Dropbox/git/ml_project2/fcn4s_visual/plot_finetune", "path to plots")
+tf.flags.DEFINE_string("plot_dir", "/home/kyu/Dropbox/git/ml_project2/fcn4s_visual/plot_finetune_2000", "path to plots")
 tf.flags.DEFINE_float("learning_rate", "1e-4", "Learning rate for Adam Optimizer")
 tf.flags.DEFINE_string("model_dir", "/home/kyu/.keras/models/tensorflow", "Path to vgg model mat")
 # tf.flags.DEFINE_string("fcn_dir", "/home/kyu/.keras/tensorboard/fcn4s_finetune", "Path to FCN model")
-tf.flags.DEFINE_string("fcn_dir", "/home/kyu/.keras/tensorboard/", "Path to FCN model")
+tf.flags.DEFINE_string("fcn_dir", "/home/kyu/.keras/tensorboard/fcn4s_finetune_test", "Path to FCN model")
 tf.flags.DEFINE_string("data_dir", get_dataset_dir('prml2'), 'path to data directory')
 tf.flags.DEFINE_bool('debug', "True", "Debug mode: True/ False")
-tf.flags.DEFINE_string('mode', "visualize", "Mode train/ test/ visualize")
-# tf.flags.DEFINE_string('mode', "train", "Mode train/ test/ visualize")
+tf.flags.DEFINE_string('mode', "predict", "Mode predict/ test/ visualize")
+# tf.flags.DEFINE_string('mode', "visualize", "Mode predict/ test/ visualize")
 
 MAX_ITERATION = int(10e5 + 1)
 NUM_OF_CLASSESS = 2

@@ -107,6 +107,30 @@ def label_to_img(imgwidth, imgheight, w, h, labels):
     return array_labels
 
 
+def greyscale_to_rgb(img, pixel_depth=255):
+    """
+    From greyscale image to RGB image
+    Parameters
+    ----------
+    img : ndarray   either (img_w, img_h, 1) or (img_w, img_h)
+
+    Returns
+    -------
+    ndarray.uint8
+    """
+    img = np.squeeze(img)
+    nChannels = len(img.shape)
+    if nChannels == 3:
+        return img * pixel_depth
+    w = img.shape[0]
+    h = img.shape[1]
+    n_img = np.zeros((w,h,3))
+    img8 = img.astype(np.uint8) * pixel_depth
+    n_img[:,:, 0] = img8
+    n_img[:,:, 1] = img8
+    n_img[:,:, 2] = img8
+    return n_img
+
 def img_float_to_uint8(img, pixel_depth=255):
     rimg = img - np.min(img)
     rimg = (rimg / np.max(rimg) * pixel_depth).round().astype(np.uint8)
@@ -750,6 +774,7 @@ class DirectoryImageLabelIterator(Iterator):
                  original_img_size=(400,400),
                  stride=(32,32),
                  ratio=None,
+                 rescale=False,
                  target_size=(64, 64), color_mode='rgb',
                  dim_ordering='default',
                  batch_size=32,
@@ -764,6 +789,7 @@ class DirectoryImageLabelIterator(Iterator):
         :param image_data_generator:    potential generator (for translation and etc)
         :param classes:                 number of class
         :param ratio:                   patch size from original image
+        :param rescale:                 True to rescale instead of crop to the image size
         :param data_folder:              image folder under root absolute directory
         :param target_size:             target patch size
         :param color_mode:              color cov_mode
@@ -806,6 +832,7 @@ class DirectoryImageLabelIterator(Iterator):
         self.preload = preload
         self.color_mode = color_mode
         self.dim_ordering = dim_ordering
+        self.rescale = rescale
 
         # Save the patch
         self.save_to_dir = save_to_dir
@@ -899,13 +926,19 @@ class DirectoryImageLabelIterator(Iterator):
             # get the index
             # print(self.batch_array[j])
             fname = self.batch_array[j][0]
-            center_x, center_y = self.batch_array[j][1]
-            x = self._load_patch(fname, center_x, center_y, greyscale,
-                                 fromdict=self.preload == 2, label=False)
+            if self.rescale:
+                x = self._get_image(fname, label=False, greyscale=greyscale, target_size=self.target_size)
+                y = self._get_image(fname, label=True, greyscale=True, target_size=self.target_size)
+                y = np.expand_dims(y, 2)
+            else:
+                center_x, center_y = self.batch_array[j][1]
+                x = self._load_patch(fname, center_x, center_y, greyscale,
+                                     fromdict=self.preload == 2, label=False)
+
+                # update self.batch_classes
+                y = self._load_patch(fname, center_x, center_y, greyscale=True,
+                                         fromdict=self.preload == 2, label=True)
             batch_x[i] = x
-            # update self.batch_classes
-            y = self._load_patch(fname, center_x, center_y, greyscale=True,
-                                     fromdict=self.preload == 2, label=True)
             batch_y[i] = y
 
         if self.save_to_dir:
@@ -934,6 +967,9 @@ class DirectoryImageLabelIterator(Iterator):
             fn = os.path.join(fname.split('.')[0][-1], fname + ".jpg")
             classlist[int(i)].append([fn, float(x), float(y)])
         return classlist
+
+    def has_next_before_reset(self):
+        return self.batch_index * self.batch_size < self.nb_sample
 
     def reset(self):
         """
@@ -1084,14 +1120,17 @@ class DirectoryImageLabelIterator(Iterator):
         x = self.image_data_generator.standardize(x)
         return x
 
-    def _get_image(self, fname, greyscale=True, fromdict=False, label=False, absolute_path=None):
+    def _get_image(self, fname, greyscale=True, fromdict=False, label=False, absolute_path=None, target_size=None):
         """
         Get image operation
         Parameters
         ----------
-        fname
-        greyscale
-
+        fname                           Filename of the image
+        greyscale : boolean             True to be greyscale image
+        fromdict : boolean              True to load from dictionary
+        label : boolean                 True to load from label path, False to load from image path
+        absolute_path : str             Absolute path to load the image, None to use flag label
+        target_size : (img_w, img_h)    Target_size to be resized if possible
         Returns
         -------
 
@@ -1104,8 +1143,10 @@ class DirectoryImageLabelIterator(Iterator):
         else:
             if absolute_path is None:
                 if label:
-                    return load_img(os.path.join(self.label_folder, fname), greyscale=greyscale)
+                    return load_img(os.path.join(self.label_folder, fname), greyscale=greyscale,
+                                    target_size=target_size)
                 else:
-                    return load_img(os.path.join(self.org_folder, fname), greyscale=greyscale)
+                    return load_img(os.path.join(self.org_folder, fname), greyscale=greyscale,
+                                    target_size=target_size)
             else:
-                return load_img(absolute_path, greyscale)
+                return load_img(absolute_path, greyscale, target_size=target_size)

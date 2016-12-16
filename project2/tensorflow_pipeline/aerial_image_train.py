@@ -15,7 +15,7 @@ import tensorflow as tf
 
 from project2.utils.data_utils import img_crop, value_to_class, concatenate_images, label_to_img, make_img_overlay, error_rate
 from project2.tensorflow_pipeline.arial_image_load import get_data
-from tensorflow_pipeline.aerial_image_model import lenet_example, get_prediction_with_groundtruth, \
+from project2.tensorflow_pipeline.aerial_image_model import lenet_example, get_prediction_with_groundtruth, \
     get_prediction_with_overlay
 
 NUM_EPOCHS = 5

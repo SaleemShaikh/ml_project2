@@ -6,11 +6,14 @@ import os
 
 from tf_fcn.fcn32_vgg import FCN32VGG
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '3'
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 os.environ['KERAS_BACKEND'] = 'tensorflow'
+os.environ['KERAS_IMAGE_DIM_ORDERING'] = 'tf'
 
 import numpy as np
 import tensorflow as tf
+
+from keras.preprocessing.image import ImageDataGenerator
 from project2.tf_fcn.fcn8_vgg import FCN8VGG
 from project2.tf_fcn.loss import loss as dloss
 from project2.tf_fcn.fcn_vgg_v2 import fcn4s, fcn32s
@@ -21,13 +24,14 @@ from project2.utils.io_utils import get_dataset_dir
 
 FLAGS = tf.flags.FLAGS
 tf.flags.DEFINE_integer("batch_size", "4", "batch size for training")
-tf.flags.DEFINE_string("logs_dir", "/home/kyu/.keras/tensorflow/fcn4s/", "path to logs directory")
+tf.flags.DEFINE_string("logs_dir", "/home/kyu/.keras/tensorboard/fcn4s/", "path to logs directory")
 tf.flags.DEFINE_float("learning_rate", "1e-4", "Learning rate for Adam Optimizer")
 tf.flags.DEFINE_string("model_dir", "/home/kyu/.keras/models/tensorflow", "Path to vgg model mat")
+tf.flags.DEFINE_string('logs_dir_finetune', '/home/kyu/.keras/tensorboard/fcn4s_finetune', 'Finetune log path')
 tf.flags.DEFINE_string("data_dir", get_dataset_dir('prml2'), 'path to data directory')
 tf.flags.DEFINE_bool('debug', "True", "Debug mode: True/ False")
 # tf.flags.DEFINE_string('mode', "visualize", "Mode train/ test/ visualize")
-tf.flags.DEFINE_string('mode', "train", "Mode train/ test/ visualize")
+tf.flags.DEFINE_string('mode', "finetune", "Mode train/ test/ finetune/ visualize")
 
 MAX_ITERATION = int(10e5 + 1)
 NUM_OF_CLASSESS = 2
@@ -74,6 +78,10 @@ def main(argv=None):
     -------
 
     """
+    # print flags:
+    print(FLAGS.__dict__)
+
+
     keep_probability = tf.placeholder(tf.float32, name='keep_probability')
     image = tf.placeholder(tf.float32, shape=[None, INPUT_SIZE, INPUT_SIZE, 3], name='input_img_tensor')
     annotation = tf.placeholder(tf.int32, shape=[None, INPUT_SIZE, INPUT_SIZE, 1], name='segmentation')
@@ -126,13 +134,31 @@ def main(argv=None):
     summary_op = tf.merge_all_summaries()
 
     print('Setting up image reader ')
-    train_itr = DirectoryImageLabelIterator(FLAGS.data_dir, None, stride=(128, 128),
-                                            dim_ordering='tf',
-                                            data_folder='massachuttes',
-                                            image_folder='sat', label_folder='label',
-                                            batch_size=FLAGS.batch_size,
-                                            target_size=(INPUT_SIZE, INPUT_SIZE),
-                                            )
+    if FLAGS.mode == 'train':
+        train_itr = DirectoryImageLabelIterator(FLAGS.data_dir, None, stride=(128, 128),
+                                                dim_ordering='tf',
+                                                data_folder='massachuttes',
+                                                image_folder='sat', label_folder='label',
+                                                batch_size=FLAGS.batch_size,
+                                                target_size=(INPUT_SIZE, INPUT_SIZE),
+                                                )
+    elif FLAGS.mode == 'finetune':
+        gen = ImageDataGenerator(
+            # rotation_range=0.2,
+            # width_shift_range=0.1,
+            # height_shift_range=0.1,
+            # horizontal_flip=True,
+            # vertical_flip=True,
+            # dim_ordering='tf'
+            )
+        train_itr = DirectoryImageLabelIterator(FLAGS.data_dir, gen, stride=(64, 64),
+                                                dim_ordering='tf',
+                                                data_folder='training',
+                                                image_folder='images', label_folder='groundtruth',
+                                                batch_size=FLAGS.batch_size,
+                                                target_size=(INPUT_SIZE, INPUT_SIZE),
+                                                )
+
     # valid_itr = DirectoryImageLabelIterator(FLAGS.data_dir, None, stride=(128, 128),
     #                                         dim_ordering='tf',
     #                                         data_folder='massachuttes',
@@ -156,7 +182,10 @@ def main(argv=None):
 
     print("Setting up saver")
     saver = tf.train.Saver()
-    summary_writer = tf.train.SummaryWriter(FLAGS.logs_dir, sess.graph)
+    if FLAGS.mode == 'train':
+        summary_writer = tf.train.SummaryWriter(FLAGS.logs_dir, sess.graph)
+    elif FLAGS.mode == 'finetune':
+        summary_writer = tf.train.SummaryWriter(FLAGS.logs_dir_finetune, sess.graph)
 
     # Initialize model and possible restore
     sess.run(tf.global_variables_initializer())
@@ -187,6 +216,31 @@ def main(argv=None):
                                                        keep_probability: 1.0})
                 print("%s ---> Validation_loss: %g" % (datetime.datetime.now(), valid_loss))
                 saver.save(sess, FLAGS.logs_dir + "model.ckpt", itr)
+
+    elif FLAGS.mode == 'finetune':
+        for itr in xrange(MAX_ITERATION):
+            train_images, train_annotations = train_itr.next()
+            # onehot_train = tf.one_hot(train_annotations, NUM_OF_CLASSESS)
+            feed_dict = {image: train_images,
+                         annotation: train_annotations,
+                         # onehot_annotation: onehot_train,
+                         keep_probability: 0.85}
+            # feed_dict = {image: train_images, annotation: train_annotations, keep_probability: 0.85}
+            sess.run(train_op, feed_dict=feed_dict)
+
+            if itr % 10 == 0:
+                train_loss, summary_str = sess.run([loss, summary_op], feed_dict=feed_dict)
+                print("Step: %d, Train_loss:%g" % (itr, train_loss))
+                summary_writer.add_summary(summary_str, itr)
+
+            if itr % 500 == 0:
+                valid_images, valid_annotations = valid_itr.next()
+                valid_loss = sess.run(loss, feed_dict={image: valid_images, annotation: valid_annotations,
+                                                       keep_probability: 1.0})
+                print("%s ---> Validation_loss: %g" % (datetime.datetime.now(), valid_loss))
+
+                saver.save(sess, FLAGS.logs_dir_finetune + "model.ckpt", itr)
+
     elif FLAGS.mode == "visualize":
         valid_images, valid_annotations = valid_itr.next()
         pred = sess.run(pred_annotation, feed_dict={image: valid_images, annotation: valid_annotations,

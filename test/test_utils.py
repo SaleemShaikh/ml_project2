@@ -1,5 +1,5 @@
 import pytest
-
+import keras
 from keras.preprocessing.image import ImageDataGenerator
 from project2.utils.data_utils import RoadImageIterator, DirectoryImageLabelIterator
 from project2.utils.io_utils import *
@@ -44,6 +44,7 @@ def test_DirectoryImageLabelIterator():
     path = get_plot_path('img_patch', 'dataset')
     itr = DirectoryImageLabelIterator(dir, gen, batch_size=2,
                                       dim_ordering='tf',
+                                      rescale=True,
                                       data_folder='massachuttes',
                                       image_folder='sat', label_folder='label',
                                       target_size=(224,224), stride=(128,128),

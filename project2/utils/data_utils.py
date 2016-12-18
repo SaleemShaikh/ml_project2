@@ -188,7 +188,7 @@ def make_img_overlay(img, predicted_img, pixel_depth=255):
     return new_img
 
 
-def concatenate_batches(batches, index_lim, dim_ordering='tf', nb_patch_per_image=1):
+def concatenate_patches(batches, index_lim, dim_ordering='tf', nb_patch_per_image=1):
     """
     To use this concatenate function, make sure the following requirements:
         1. ratio * original_image_width/height = target_size_width/height
@@ -213,6 +213,7 @@ def concatenate_batches(batches, index_lim, dim_ordering='tf', nb_patch_per_imag
         index_lim = (index_lim, index_lim)
     if len(index_lim) != 2:
         raise ValueError("Only accept (x,y) index lim")
+
     for batch in batches:
         if isinstance(batch, list):
             b_shape = (len(batch),) + batch[0].shape
@@ -232,8 +233,10 @@ def concatenate_batches(batches, index_lim, dim_ordering='tf', nb_patch_per_imag
                                              b_shape[3]))
                 else: # Greyscale
                     result = np.zeros(shape=(np.sqrt(nb_patch_per_image) * b_shape[1],
-                                             np.sqrt(nb_patch_per_image) * b_shape[2])
+                                             np.sqrt(nb_patch_per_image) * b_shape[2],
+                                             1)
                                       )
+                    _batches = np.expand_dims(_batches, axis=-1)
                 img_w = b_shape[1]
                 img_h = b_shape[2]
             else:
@@ -709,7 +712,6 @@ class RoadImageIterator(Iterator):
 
         # second, build an index of the images in the different class subfolders
         super(RoadImageIterator, self).__init__(self.nb_sample, batch_size, shuffle, seed)
-        # TODO figure out how to generate balanced dataset
         self.nb_per_class = nb_per_class
         self.index_generator = self._flow_index(self.nb_per_class * self.nb_class, batch_size, shuffle, seed)
 
@@ -1351,5 +1353,5 @@ class DirectoryImageLabelIterator(Iterator):
 
     @staticmethod
     @DeprecationWarning
-    def concatenate_batches(batches, index_lim, dim_ordering='tf', nb_image_per_batch=1):
-        return concatenate_batches(batches, index_lim, dim_ordering, nb_image_per_batch)
+    def concatenate_patches(batches, index_lim, dim_ordering='tf', nb_image_per_batch=1):
+        return concatenate_patches(batches, index_lim, dim_ordering, nb_image_per_batch)

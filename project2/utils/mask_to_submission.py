@@ -117,7 +117,7 @@ def collect_and_concat_into_images(path, nb_patch_per_image, target_size=None, d
         img = load_img(fname, target_size=target_size)
         img_list.append(img_to_array(img, 'tf'))
 
-    res_list = DirectoryImageLabelIterator.concatenate_batches((img_list,), (3,3),
+    res_list = DirectoryImageLabelIterator.concatenate_patches((img_list,), (3,3),
                                                                nb_image_per_batch=nb_patch_per_image)
     return res_list
 
@@ -194,23 +194,23 @@ def pipeline_runtime_from_mask_to_submission(model, title, proj_path, input_imgs
                                              save_normalized=False, save_overlay=True):
     """
     Generate runtime submission files and related image inputs. Directly from evaluation_fcn.py
+    label_path = os.path.join(proj_path, model, title)
 
     Parameters
     ----------
-    model : str         model name
-    title : str         title of training
+    model : str                                 model name
+    title : str                                 title of training
     proj_path :
-                    label_path = os.path.join(proj_path, model, title)
-    input_imgs: list[ndarray.astype(uint8)]   size should be nb_image * nb_patch_per_image
-    pred_imgs : list[ndarray.astype(uint8)]   size same as input_imgs, in RGB
-    nb_patch_per_image : int    prod(index_lim)
+    input_imgs: list[ndarray.astype(uint8)]     size should be nb_image * nb_patch_per_image
+    pred_imgs : list[ndarray.astype(uint8)]     size same as input_imgs, in RGB
+    nb_patch_per_image : int                    prod(index_lim)
     index_lim  (int, int)       image -> 25*25 patches, (25, 25)
     save_normalized             True to save normalized predictions by 16 * 16
     save_overlay                True to save overlay
 
     Returns
     -------
-
+    None
     """
     label_path = os.path.join(proj_path, model, title)
     save_path = os.path.join(label_path, 'complete_test_label_submission')
@@ -231,6 +231,29 @@ def pipeline_runtime_from_mask_to_submission(model, title, proj_path, input_imgs
     complete_label_files = glob.glob(save_path + '/test_*.png')
     submission_filename = os.path.join(proj_path, model + '_' + title + '_patch' + str(patch_size) + '.csv')
     masks_to_submission(submission_filename, *complete_label_files)
+
+
+def concatenate_images_and_save(image_list, save_dir, nb_patch_per_image, index_lim, prefix, density_map=False):
+    """
+    Concatenate image and then save to files
+
+    Parameters
+    ----------
+    image_list : list[ndarray]      Image should be in format of greyscale or rgb
+    save_dir : str                  Absolute directory to save the image
+    nb_patch_per_image : int        number of patches per image
+    index_lim : (int, int)          Number of patches per x and y axis
+
+    Returns
+    -------
+    num_image_save : int            Number of images saved
+    """
+    num_image_save = 0
+    concat_images = concatenate_patches((image_list,), index_lim, nb_patch_per_image=nb_patch_per_image)
+    for ind, img in enumerate(concat_images[0]):
+        save_image(img, save_dir=save_dir, name=prefix + str(ind))
+        num_image_save += 1
+    return num_image_save
 
 
 if __name__ == '__main__':

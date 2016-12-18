@@ -8,7 +8,7 @@ import re
 import glob
 from project2.utils.data_utils import img_to_array, load_img
 from project2.tf_fcn.utils import save_image
-from project2.utils.data_utils import DirectoryImageLabelIterator, make_img_overlay, concatenate_batches
+from project2.utils.data_utils import DirectoryImageLabelIterator, make_img_overlay, concatenate_patches
 import tensorflow as tf
 
 foreground_threshold = 0.25 # percentage of pixels > 1 required to assign a foreground label to a patch
@@ -197,15 +197,16 @@ def pipeline_runtime_from_mask_to_submission(model, title, proj_path, input_imgs
 
     Parameters
     ----------
-    model
-    title
-    proj_path
-    input_imgs
-    pred_imgs
-    nb_patch_per_image
-    index_lim
-    save_normalized
-    save_overlay
+    model : str         model name
+    title : str         title of training
+    proj_path :
+                    label_path = os.path.join(proj_path, model, title)
+    input_imgs: list[ndarray.astype(uint8)]   size should be nb_image * nb_patch_per_image
+    pred_imgs : list[ndarray.astype(uint8)]   size same as input_imgs, in RGB
+    nb_patch_per_image : int    prod(index_lim)
+    index_lim  (int, int)       image -> 25*25 patches, (25, 25)
+    save_normalized             True to save normalized predictions by 16 * 16
+    save_overlay                True to save overlay
 
     Returns
     -------
@@ -220,7 +221,7 @@ def pipeline_runtime_from_mask_to_submission(model, title, proj_path, input_imgs
     tf.gfile.MakeDirs(save_path)
 
     # Concatenate images
-    image_list, pred_list = concatenate_batches((input_imgs, pred_imgs), index_lim, dim_ordering='tf',
+    image_list, pred_list = concatenate_patches((input_imgs, pred_imgs), index_lim, dim_ordering='tf',
                                                 nb_patch_per_image=nb_patch_per_image)
 
     # Save the concatenated images with normalization, overlay option

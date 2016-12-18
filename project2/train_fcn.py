@@ -114,7 +114,9 @@ def main(argv=None):
     ## It seems wrongly since FCN should not implement fully-connected layers ##
     Model design is good, however, it is not compatible with this train-procedure.
     In order to preceed, it is
+
     """
+
     # model = FCN32VGG(vgg16_npy_path=os.path.join(FLAGS.model_dir, 'vgg16.npy'))
     # model.build(image, train=True, num_classes=NUM_OF_CLASSESS, random_init_fc8=False, debug=True)
     # pred_annotation = tf.expand_dims(model.pred_up, dim=3)

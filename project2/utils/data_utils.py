@@ -15,6 +15,7 @@ from keras.preprocessing.image import Iterator, ImageDataGenerator, DirectoryIte
 
 
 
+
 #######################################################
 #             Tensorflow pipeline                     #
 #######################################################
@@ -32,7 +33,6 @@ def img_crop(im, w, h):
                 im_patch = im[j:j + w, i:i + h, :]
             list_patches.append(im_patch)
     return list_patches
-
 
 
 def value_to_class(v):
@@ -157,17 +157,101 @@ def concatenate_images(img, gt_img):
 
 
 def make_img_overlay(img, predicted_img, pixel_depth=255):
+    """
+    Update 2016.12.18
+        Fix to accept img in both uint8 or float
+    Parameters
+    ----------
+    img : numpy.array   type int8
+    predicted_img : numpy.array
+    pixel_depth :       scale of the predicted_image
+
+    Returns
+    -------
+    generated Image object
+    """
     w = img.shape[0]
     h = img.shape[1]
     color_mask = np.zeros((w, h, 3), dtype=np.uint8)
-    color_mask[:, :, 0] = predicted_img * pixel_depth
+    if len(predicted_img.shape) == 3:
+        color_mask[:, :, 0] = predicted_img[:,:,0] * pixel_depth
+    else:
+        color_mask[:, :, 0] = predicted_img * pixel_depth
 
-    img8 = img_float_to_uint8(img)
+    if not img.dtype == np.uint:
+        img8 = img_float_to_uint8(img)
+    else:
+        img8 = img
     background = Image.fromarray(img8, 'RGB').convert("RGBA")
     overlay = Image.fromarray(color_mask, 'RGB').convert("RGBA")
     new_img = Image.blend(background, overlay, 0.2)
     return new_img
 
+
+def concatenate_batches(batches, index_lim, dim_ordering='tf', nb_patch_per_image=1):
+    """
+    To use this concatenate function, make sure the following requirements:
+        1. ratio * original_image_width/height = target_size_width/height
+        2. 1 / ratio = int
+        3. stride_w/h = ratio * original_image_w/h
+    This function is composed basically for the submission files
+
+    Parameters
+    ----------
+    batches: [ndarray]      list or tuple of batches to be concatenated
+                            Satisfies the requirement
+                            In tensorflow, [ (nb_patches_per_image, patch_w, patch_h, channel)]
+    index_lim : [int, int]  Index limit for x and y direction.
+    Returns
+    -------
+    concate_batch           In tensorflow, [ (patch_w * nb_patches_per_image/2,
+                                              patch_h * nb_patches_per_image/2)
+                                           ]
+    """
+    result_list = []
+    if isinstance(index_lim, int):
+        index_lim = (index_lim, index_lim)
+    if len(index_lim) != 2:
+        raise ValueError("Only accept (x,y) index lim")
+    for batch in batches:
+        if isinstance(batch, list):
+            b_shape = (len(batch),) + batch[0].shape
+        else:
+            b_shape = batch.shape
+
+        nb_patch = b_shape[0]
+        if nb_patch % nb_patch_per_image != 0:
+            raise ValueError("Make sure batches are complete ")
+        _result_list = []
+        for index in range(nb_patch / nb_patch_per_image):
+            _batches = batch[index * nb_patch_per_image:nb_patch_per_image * (index + 1)]
+            if dim_ordering == 'tf':
+                if len(b_shape) == 4: # RGB
+                    result = np.zeros(shape=(np.sqrt(nb_patch_per_image) * b_shape[1],
+                                             np.sqrt(nb_patch_per_image) * b_shape[2],
+                                             b_shape[3]))
+                else: # Greyscale
+                    result = np.zeros(shape=(np.sqrt(nb_patch_per_image) * b_shape[1],
+                                             np.sqrt(nb_patch_per_image) * b_shape[2])
+                                      )
+                img_w = b_shape[1]
+                img_h = b_shape[2]
+            else:
+                raise NotImplementedError
+
+            for i in range(index_lim[0]):
+                for j in range(index_lim[1]):
+                    result[
+                        img_w * i: img_w * (i+1),
+                        img_h * j: img_h * (j+1),
+                        :
+                    ] = _batches[index_lim[1] * j + i]
+            if result.dtype == np.uint8:
+                result = img_to_array(result, 'tf')
+            _result_list.append(result)
+        result_list.append(_result_list)
+
+    return result_list
 
 #######################################################
 #             image related operations                #
@@ -198,6 +282,35 @@ def crop(x, center_x, center_y, ratio=.23, channel_index=0):
         return x[int(r_x[0] * w):int(r_x[1] * w), int(r_y[0] * h):int(r_y[1] * h), :]
     else:
         raise ValueError("Only support channel as 0 or 2")
+
+
+def fix_rotation(x, rg, row_index=1, col_index=2, channel_index=0,
+                    fill_mode='nearest', cval=0.):
+    """
+    Apply fix rotation on a given image
+    Parameters
+    ----------
+    x
+    rg
+    row_index
+    col_index
+    channel_index
+    fill_mode
+    cval
+
+    Returns
+    -------
+
+    """
+    theta = np.pi / 180 * rg
+    rotation_matrix = np.array([[np.cos(theta), -np.sin(theta), 0],
+                                [np.sin(theta), np.cos(theta), 0],
+                                [0, 0, 1]])
+
+    h, w = x.shape[row_index], x.shape[col_index]
+    transform_matrix = transform_matrix_offset_center(rotation_matrix, h, w)
+    x = apply_transform(x, transform_matrix, channel_index, fill_mode, cval)
+    return x
 
 
 def random_rotation(x, rg, row_index=1, col_index=2, channel_index=0,
@@ -409,6 +522,40 @@ def crop_img(img, x, y, ratio=.23, target_size=None):
 def list_pictures(directory, ext='jpg|jpeg|bmp|png'):
     return [os.path.join(directory, f) for f in sorted(os.listdir(directory))
             if os.path.isfile(os.path.join(directory, f)) and re.match('([\w]+\.(?:' + ext + '))', f)]
+
+
+#######################################################
+#             Other utilities func                    #
+#######################################################
+
+def sort_human(l):
+    """
+    Sort a string list with int key inside
+    For example, ['img_1', 'img_10', 'img_2'] returns
+                 ['img_1', 'img_2', 'img_10']
+
+    References
+    ----------
+        Human sort in python blog
+        http://nedbatchelder.com/blog/200712/human_sorting.html
+
+    Parameters
+    ----------
+    l : list(str)
+
+    Returns
+    -------
+    sorted_list according to their numerical index.
+    """
+    def tryint(c):
+        try:
+            return int(c)
+        except:
+            return c
+    def alphanum_key(s):
+        return [tryint(c) for c in re.split('([0-9]+)', s)]
+    l.sort(key=alphanum_key)
+    return l
 
 
 class RoadImageIterator(Iterator):
@@ -911,6 +1058,7 @@ class DirectoryImageLabelIterator(Iterator):
                         break
                 if is_valid:
                     self.nb_sample += 1
+            file_list = sort_human(file_list)
             if subdir == label_folder:
                 self.label_files = file_list
             else:
@@ -1025,7 +1173,10 @@ class DirectoryImageLabelIterator(Iterator):
         self.batch_array = []
         self.batch_classes = []
         # Generate file indices again
-        self.file_indices = np.random.permutation((len(self.img_files)))
+        if self.shuffle:
+            self.file_indices = np.random.permutation((len(self.img_files)))
+        else:
+            self.file_indices = np.arange(0, len(self.img_files))
         # Generate batch_array, for batch_classes, leave it to runtime generation
         valid_patch_per_image = []
         patch_w = self.original_image_size[0]*self.ratio
@@ -1199,65 +1350,6 @@ class DirectoryImageLabelIterator(Iterator):
                 return load_img(absolute_path, greyscale, target_size=target_size)
 
     @staticmethod
+    @DeprecationWarning
     def concatenate_batches(batches, index_lim, dim_ordering='tf', nb_image_per_batch=1):
-        """
-        To use this concatenate function, make sure the following requirements:
-            1. ratio * original_image_width/height = target_size_width/height
-            2. 1 / ratio = int
-            3. stride_w/h = ratio * original_image_w/h
-        This function is composed basically for the submission files
-
-        Parameters
-        ----------
-        batches: [ndarray]      list or tuple of batches to be concatenated
-                                Satisfies the requirement
-                                In tensorflow, [ (nb_patches_per_image, patch_w, patch_h, channel)]
-        index_lim : [int, int]  Index limit for x and y direction.
-        Returns
-        -------
-        concate_batch           In tensorflow, [ (patch_w * nb_patches_per_image/2,
-                                                  patch_h * nb_patches_per_image/2)
-                                               ]
-        """
-        result_list = []
-        if len(index_lim) != 2:
-            raise ValueError("Only accept (x,y) index lim")
-        for batch in batches:
-            if isinstance(batch, list):
-                b_shape = (len(batch),) + batch[0].shape
-            else:
-                b_shape = batch.shape
-
-            nb_patch = b_shape[0]
-            if nb_patch % nb_image_per_batch != 0:
-                raise ValueError("Make sure batches are complete ")
-            _result_list = []
-            for index in range(nb_patch / nb_image_per_batch):
-                _batches = batch[index * nb_image_per_batch:nb_image_per_batch * (index + 1)]
-                if dim_ordering == 'tf':
-                    if len(b_shape) == 4: # RGB
-                        result = np.zeros(shape=(np.sqrt(nb_image_per_batch) * b_shape[1],
-                                                 np.sqrt(nb_image_per_batch) * b_shape[2],
-                                                 b_shape[3]))
-                    else: # Greyscale
-                        result = np.zeros(shape=(np.sqrt(nb_image_per_batch) * b_shape[1],
-                                                 np.sqrt(nb_image_per_batch) * b_shape[2])
-                                          )
-                    img_w = b_shape[1]
-                    img_h = b_shape[2]
-                else:
-                    raise NotImplementedError
-
-                for i in range(index_lim[0]):
-                    for j in range(index_lim[1]):
-                        result[
-                            img_w * i: img_w * (i+1),
-                            img_h * j: img_h * (j+1),
-                            :
-                        ] = _batches[index_lim[1] * j + i]
-                if result.dtype == np.uint8:
-                    result = img_to_array(result, 'tf')
-                _result_list.append(result)
-            result_list.append(_result_list)
-
-        return result_list
+        return concatenate_batches(batches, index_lim, dim_ordering, nb_image_per_batch)

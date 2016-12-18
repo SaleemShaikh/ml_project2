@@ -152,7 +152,6 @@ def main(argv=None):  # pylint: disable=unused-argument
             pimg = get_prediction_with_groundtruth(train_data_filename, i, model)
             Image.fromarray(pimg).save(prediction_training_dir + "prediction_" + str(i) + ".png")
             oimg = get_prediction_with_overlay(train_data_filename, i, model)
-            oimg.save(prediction_training_dir + "overlay_" + str(i) + ".png")       
-
+            oimg.save(prediction_training_dir + "overlay_" + str(i) + ".png")
 if __name__ == '__main__':
     tf.app.run()

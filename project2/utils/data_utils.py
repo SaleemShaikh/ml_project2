@@ -936,6 +936,24 @@ class DirectoryImageLabelIterator(Iterator):
         Fix the save_to_dir function (by making sure the image is converted to float32 before rescale
         Implement the patch_size
 
+    Update 2016.12.18
+        Implement the rotation for 45 degrees as a following manner:
+            1. Generate the list with not only [img_name, (x,y)] but append
+                [rotation_img_name, (x',y')]
+            2. The logic of (x',y') is the following:
+                if the image needs to be rotated 45 degree, just call PIL.Image.rotate(45, resample=BILINEAR)
+                then, calculate the center according to the new stride (rotational stride)
+                define the relative image start point as 1 / 2*(2 + sqrt(2)) = 0.14644661
+                                 end point as  (3 + 2*sqrt(2)) / 2*(2 + sqrt(2)) = 0.853553391
+
+                Assume we take the patch as ratio 1/2
+                Then four image should be produced on the rotated image.
+                Naively, we could preserve the blank and generated the same number of rotated images,
+                meanning under stride 100,100, ratio 1/2, we could get 9 image out of rotated.
+
+                For the best performance, we could generate four rotated images, with center roughly around
+                with overlapping 30%
+                Four center are : [ 0.3964, 0.3964],[0.6036, 0.3964], [0.3964, 0.6036], [0.6036, 0.6036]
     """
 
     def __init__(self, directory, image_data_generator,
@@ -946,6 +964,7 @@ class DirectoryImageLabelIterator(Iterator):
                  stride=(32,32),
                  ratio=None,
                  rescale=False,
+                 rotation=None,
                  target_size=(64, 64), color_mode='rgb',
                  dim_ordering='default',
                  batch_size=32,
@@ -962,6 +981,8 @@ class DirectoryImageLabelIterator(Iterator):
         :param classes:                 dict{'class_label': index}
         :param ratio:                   patch size from original image
         :param rescale:                 True to rescale instead of crop to the image size
+        :param rotation:                None for no rotation, 'naive' to generate patch with blankage,
+                                        'fine' to generate patch without blankage.
         :param data_folder:             image folder under root absolute directory
         :param target_size:             target patch size
         :param color_mode:              color cov_mode
@@ -984,6 +1005,9 @@ class DirectoryImageLabelIterator(Iterator):
             raise ValueError('Invalid color cov_mode:', color_mode,
                              '; expected "rgb" or "greyscale".')
 
+        if rotation not in {None, 'naive', 'fine'}:
+            raise ValueError("Invalid roation mode: ", rotation,
+                             '; expect "naive", "fine" or None.')
         # Properties
         self.directory = directory
         if image_data_generator is None:
@@ -1006,6 +1030,9 @@ class DirectoryImageLabelIterator(Iterator):
         self.dim_ordering = dim_ordering
         self.rescale = rescale
         self.image_only = image_only
+        self.rotation = rotation
+        if self.rotation:
+            self.rotate_degree = 45
 
         # Save the patch
         self.save_to_dir = save_to_dir
@@ -1110,8 +1137,14 @@ class DirectoryImageLabelIterator(Iterator):
         for i, j in enumerate(index_array):
             # get the index
             # print(self.batch_array[j])
+            try:
+                rotate = self.batch_array[j][2]
+            except:
+                rotate = 0
+
             fname = self.batch_array[j][0]
             if self.rescale:
+                # TODO support rotation for rescale
                 x = self._get_image(fname, label=False, greyscale=greyscale, target_size=self.target_size)
                 if not self.image_only:
                     y = self._get_image(fname, label=True, greyscale=True, target_size=self.target_size)
@@ -1119,7 +1152,8 @@ class DirectoryImageLabelIterator(Iterator):
             else:
                 center_x, center_y = self.batch_array[j][1]
                 x = self._load_patch(fname, center_x, center_y, greyscale,
-                                     fromdict=self.preload == 2, label=False)
+                                     fromdict=self.preload == 2, label=False,
+                                     rotate_degree=rotate)
 
                 if not self.image_only:
                     # update self.batch_classes
@@ -1192,12 +1226,25 @@ class DirectoryImageLabelIterator(Iterator):
                                               float(y) / self.original_image_size[1]))
                 y += self.stride[1]
             x += self.stride[0]
+
         nb_per_image = len(valid_patch_per_image)
         print('number of batch generated per image is {}'.format(nb_per_image))
 
         for file_index in self.file_indices:
             for center in valid_patch_per_image:
                 self.batch_array.append((self.img_files[file_index], center))
+        if self.rotation:
+            if self.rotation == 'naive':
+                for file_index in self.file_indices:
+                    for center in valid_patch_per_image:
+                        self.batch_array.append((self.img_files[file_index], center, self.rotate_degree))
+            elif self.rotation == 'fine':
+                valid_patch_per_image_fine_rotation = [[0.3964, 0.3964], [0.6036, 0.3964],
+                                                       [0.3964, 0.6036], [0.6036, 0.6036]]
+                for file_index in self.file_indices:
+                    for center in valid_patch_per_image_fine_rotation:
+                        self.batch_array.append((self.img_files[file_index], center, self.rotate_degree))
+
         self.nb_batch_array = len(self.batch_array)
         # Load all images
 
@@ -1259,7 +1306,8 @@ class DirectoryImageLabelIterator(Iterator):
             yield (index_array[current_index: current_index + current_batch_size],
                    current_index, current_batch_size)
 
-    def _load_patch(self, fname, center_x, center_y, greyscale=False, fromdict=False, label=False):
+    def _load_patch(self, fname, center_x, center_y, greyscale=False, fromdict=False, label=False,
+                    rotate_degree=0):
         """
         Load patches with given name and center
 
@@ -1272,6 +1320,7 @@ class DirectoryImageLabelIterator(Iterator):
         fromdict : bool     True to load from dictionary
         label : bool        True to load label patch,
                             False load the image files
+        rotate_degree : int rotation degree
 
         Returns
         -------
@@ -1285,6 +1334,8 @@ class DirectoryImageLabelIterator(Iterator):
             img = self._get_image(fname, greyscale=True, fromdict=self.preload == 1,
                                   label=True,
                                   absolute_path=os.path.join(self.label_folder, fname))
+            # Support rotate here !
+            img = img.rotate(rotate_degree, resample=Image.BILINEAR)
             img = crop_img(img, center_x, center_y, ratio=self.ratio, target_size=self.target_size)
             x = img_to_array(img, self.dim_ordering)
             x[np.where(x <= self.threshold)] = 0
@@ -1295,6 +1346,7 @@ class DirectoryImageLabelIterator(Iterator):
                 return self.img_dict["{}_{}_{}".format(fname, str(center_x), str(center_y))]
             img = self._get_image(fname, greyscale, self.preload == 1)
             # ADD MORE LOGIC HERE, LOAD
+            img = img.rotate(rotate_degree, resample=Image.BILINEAR)
             img = crop_img(img, center_x, center_y, ratio=self.ratio, target_size=self.target_size)
             x = img_to_array(img, dim_ordering=self.dim_ordering)
             x = self.image_data_generator.random_transform(x)

@@ -75,13 +75,16 @@ def main(argv=None):
             4. (optional) Concatenate the result next to it
             5. (optional) Normalize the above result and save to normalized version
             6. Generate the corresponding submission file
+            7. Support probability plot and output for post-processing
 
     """
+
     # Make dir of plot dir
     if tf.gfile.Exists(FLAGS.plot_dir):
         tf.gfile.DeleteRecursively(FLAGS.plot_dir)
     tf.gfile.MakeDirs(FLAGS.plot_dir)
 
+    # Define the tensorflow graph
     image = tf.placeholder(tf.float32, shape=[None, INPUT_SIZE, INPUT_SIZE, 3], name='input_img_tensor')
     annotation = tf.placeholder(tf.float32, shape=[None, INPUT_SIZE, INPUT_SIZE, 1], name='groundtruth')
     keep_probability = tf.placeholder(tf.float32, name='keep_probability')
@@ -95,10 +98,10 @@ def main(argv=None):
         ))
     )
 
+    # Summary node
     tf.image_summary('input_image', image, max_images=2)
     tf.image_summary('ground_truth', tf.cast(tf.mul(annotation, 128), tf.uint8), max_images=2)
     tf.image_summary('pred_annotation', tf.cast(tf.abs(tf.mul(pred_annotation, 128)), tf.uint8), max_images=2)
-
     tf.scalar_summary('entropy', loss)
 
     trainable_var = tf.trainable_variables()

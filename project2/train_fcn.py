@@ -28,19 +28,19 @@ tf.flags.DEFINE_string("logs_dir", "/home/kyu/.keras/tensorboard/fcn4s_clean/", 
 tf.flags.DEFINE_float("learning_rate", "1e-4", "Learning rate for Adam Optimizer")
 tf.flags.DEFINE_string("model_dir", "/home/kyu/.keras/models/tensorflow", "Path to vgg model mat")
 
-tf.flags.DEFINE_string('mode', "train", "Mode train/ test/ finetune/ visualize")
+tf.flags.DEFINE_string('mode', "finetune", "Mode train/ test/ finetune/ visualize")
 tf.flags.DEFINE_bool('augmentation', 'False', 'Data runtime augmentation mode : True/ False')
 tf.flags.DEFINE_string('logs_dir_finetune',
-                       '/home/kyu/.keras/tensorboard/fcn4s_finetune_5000/',
+                       '/home/kyu/.keras/tensorboard/clean_fcn4s_finetune_5000/',
                        'Finetune log path')
 
 tf.flags.DEFINE_string("data_dir", get_dataset_dir('prml2'), 'path to data directory')
 
 tf.flags.DEFINE_bool('debug', "True", "Debug mode: True/ False")
 # tf.flags.DEFINE_string('mode', "visualize", "Mode train/ test/ visualize")
-tf.flags.DEFINE_string("plot_dir", "/home/kyu/Dropbox/git/ml_project2/fcn32s_visual/plot_data_dir_test",
+tf.flags.DEFINE_string("plot_dir", "/home/kyu/Dropbox/git/ml_project2/fcn4s_visual/plot_finetune_clean_5000",
                        "path to plots")
-MAX_ITERATION = int(50000 + 1)
+MAX_ITERATION = int(5000 + 1)
 NUM_OF_CLASSESS = 2
 IMAGE_SIZE = 400
 INPUT_SIZE = 224
@@ -77,7 +77,8 @@ def main(argv=None):
     # TODO    generate the predictions on training set and testing set. Make the submission to
     # TODO    see the differences in F1 scores
     # TODO 4. Implement native F1 score in current FCN training process
-    # TODO 5.
+    # TODO 5. Implement rotation
+    # DONE 6. Finetune on another setting of dataset
     """
     Adapt from
         References: https://github.com/shekkizh/FCN.tensorflow/blob/master/FCN.py
@@ -93,7 +94,11 @@ def main(argv=None):
             for partial data.
             Comparing the result with not fully converged model, it indicates that the earlier model
              performs better actually.
-
+    Update 2016.12.18
+        Change the finetune to
+            1. Stride to (100,100)
+            2. Ratio = 1/2
+        Implement Random horizontal and vertical flip
     """
 
     # print flags:
@@ -103,8 +108,6 @@ def main(argv=None):
     keep_probability = tf.placeholder(tf.float32, name='keep_probability')
     image = tf.placeholder(tf.float32, shape=[None, INPUT_SIZE, INPUT_SIZE, 3], name='input_img_tensor')
     annotation = tf.placeholder(tf.int32, shape=[None, INPUT_SIZE, INPUT_SIZE, 1], name='segmentation')
-    # onehot_annotation = tf.placeholder(tf.int32, shape=[None, INPUT_SIZE, INPUT_SIZE, 2], name='onehot')
-
     pred_annotation, logits = fcn4s(image, keep_probability, FLAGS)
 
 
@@ -117,19 +120,10 @@ def main(argv=None):
 
     """
 
-    # model = FCN32VGG(vgg16_npy_path=os.path.join(FLAGS.model_dir, 'vgg16.npy'))
-    # model.build(image, train=True, num_classes=NUM_OF_CLASSESS, random_init_fc8=False, debug=True)
-    # pred_annotation = tf.expand_dims(model.pred_up, dim=3)
-    # logits = model.upscore
-
-    # from project2.tf_fcn.loss import loss
-    # loss = dloss(logits, onehot_annotation, num_classes=NUM_OF_CLASSESS)
-
     loss = tf.reduce_mean(
         (tf.nn.sparse_softmax_cross_entropy_with_logits(
             # Use sqeeze because expand_dims first
             logits, tf.squeeze(annotation, squeeze_dims=[3]), name='xentropy')
-            # logits, annotation, name='xentropy')
         )
     )
 
@@ -137,7 +131,6 @@ def main(argv=None):
         (tf.nn.sparse_softmax_cross_entropy_with_logits(
             # Use sqeeze because expand_dims first
             logits, tf.squeeze(annotation, squeeze_dims=[3]), name='val_xentropy')
-            # logits, annotation, name='xentropy')
         )
     )
 
@@ -166,7 +159,6 @@ def main(argv=None):
 
     print("setting up validation summary op ...")
 
-    # with tf.Graph().as_default() as graph:
     with tf.name_scope('validation') as scope:
         val_input = tf.image_summary('val_input_image', image, max_images=2)
         val_gt = tf.image_summary('val_ground_truth', tf.cast(tf.mul(annotation, 128), tf.uint8), max_images=2)
@@ -192,21 +184,23 @@ def main(argv=None):
                 rotation, shift_range
             ))
             gen = ImageDataGenerator(
-                rotation_range=rotation,
-                width_shift_range=shift_range,
-                height_shift_range=shift_range,
+                # rotation_range=rotation,
+                # width_shift_range=shift_range,
+                # height_shift_range=shift_range,
                 horizontal_flip=True,
                 vertical_flip=True,
                 dim_ordering='tf'
                 )
         else:
             gen = None
-        train_itr = DirectoryImageLabelIterator(FLAGS.data_dir, gen, stride=(128, 128),
+        train_itr = DirectoryImageLabelIterator(FLAGS.data_dir, gen, stride=(100, 100),
                                                 dim_ordering='tf',
                                                 data_folder='training',
                                                 image_folder='images', label_folder='groundtruth',
                                                 batch_size=FLAGS.batch_size,
                                                 target_size=(INPUT_SIZE, INPUT_SIZE),
+                                                ratio=1/2,
+                                                original_img_size=(400,400),
                                                 )
 
     elif FLAGS.mode == 'test':
@@ -267,7 +261,7 @@ def main(argv=None):
     ckpt = tf.train.get_checkpoint_state(FLAGS.logs_dir)
     if ckpt and ckpt.model_checkpoint_path and FLAGS.mode != 'test':
         saver.restore(sess, ckpt.model_checkpoint_path)
-        print("Model restored")
+        print("Model restored from check point log {}".format(FLAGS.logs_dir))
 
     if FLAGS.mode == 'train':
         try:
@@ -330,7 +324,6 @@ def main(argv=None):
         except KeyboardInterrupt:
             print("Stop finetune and save the model")
             saver.save(sess, FLAGS.logs_dir + "model.ckpt", itr)
-
 
     elif FLAGS.mode == "visualize":
         valid_images, valid_annotations = valid_itr.next()

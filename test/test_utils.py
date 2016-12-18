@@ -29,6 +29,7 @@ def test_RoadImageIterator():
 
     NB_EPOCH = 100
     generator = ImageDataGenerator(rescale=1. / 255)
+
     for mode in range(3):
         train_img_iterator = RoadImageIterator(get_road_image_dir(), generator,
                                                stride=STRIDE,
@@ -91,7 +92,7 @@ def test_ratio_DirectoryImageLabelGenerator():
     result = make_img_overlay(result_image, result_label)
     # result.save(path + '/result.png')
 
-    res_img, res_lab = DirectoryImageLabelIterator.concatenate_batches(
+    res_img, res_lab = DirectoryImageLabelIterator.concatenate_patches(
         (batch_x, batch_y), (index_lim, index_lim), nb_image_per_batch=4)
     res_lab = np.squeeze(res_lab)
     res = make_img_overlay(res_img[0], res_lab[0])

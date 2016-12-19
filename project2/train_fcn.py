@@ -199,7 +199,7 @@ def main(argv=None):
                                                 image_folder='images', label_folder='groundtruth',
                                                 batch_size=FLAGS.batch_size,
                                                 target_size=(INPUT_SIZE, INPUT_SIZE),
-                                                ratio=1/2,
+                                                ratio=1./2,
                                                 original_img_size=(400,400),
                                                 )
 

@@ -52,11 +52,11 @@ FLAGS = tf.flags.FLAGS
 
 # Evaluation directory, settings and hyper-parameters
 MODLE_NAME = 'clean_fcn4s_finetune_5000_with_rotate_from_scratch'
-# MODLE_NAME = 'clean_fcns_finetune_5000_with_rotate'
-# MODLE_NAME = 'fcn4s_finetune_5000'
-# MODLE_NAME = 'fcn4s_finetune_5000_newdata'
+# MODEL_NAME = 'clean_fcns_finetune_5000_with_rotate'
+# MODEL_NAME = 'fcn4s_finetune_5000'
+# MODEL_NAME = 'fcn4s_finetune_5000_newdata'
 PLOT_DIR = 'plot_finetune'
-ITER = '0'
+ITER = '4000'
 index_lim = 3
 
 # Relative path setting
@@ -64,7 +64,7 @@ tf.flags.DEFINE_string("fcn_dir", os.path.join(PROJECT_DIR, 'tensorboard', MODLE
 tf.flags.DEFINE_string('output_dir', os.path.join(PROJECT_DIR, 'output'), 'output path')
 tf.flags.DEFINE_string("data_dir", os.path.join(PROJECT_DIR, 'data'), 'path to data directory')
 tf.flags.DEFINE_string("model_dir", os.path.join(PROJECT_DIR, 'model'), "Path to vgg model mat")
-tf.flags.DEFINE_string("plot_dir", os.path.join(PROJECT_DIR, MODLE_NAME, PLOT_DIR + '_' + ITER), "path to plots")
+tf.flags.DEFINE_string("plot_dir", os.path.join(PROJECT_DIR, 'output', MODLE_NAME, PLOT_DIR + '_' + ITER), "path to plots")
 tf.flags.DEFINE_integer("batch_size", "9", "batch size for visualization")
 tf.flags.DEFINE_bool('debug', "False", "Debug mode: True/ False")
 tf.flags.DEFINE_string('mode', "predict", "Mode predict/ test/ visualize")

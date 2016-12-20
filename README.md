@@ -14,7 +14,7 @@ Our run-time
 
 
 ## Project directory 
-
+Please download the run-time 
 ```
 path/to/project/
     project2/   # source codes

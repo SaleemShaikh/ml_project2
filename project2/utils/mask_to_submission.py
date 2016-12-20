@@ -6,6 +6,7 @@ import numpy as np
 import matplotlib.image as mpimg
 import re
 import glob
+
 from project2.utils.data_utils import img_to_array, load_img
 from project2.tf_fcn.utils import save_image
 from project2.utils.data_utils import DirectoryImageLabelIterator, make_img_overlay, concatenate_patches
@@ -189,7 +190,7 @@ def pipeline_from_masks_to_submission(model, title, proj_path, regenerate=False,
     masks_to_submission(submission_filename, *complete_label_files)
 
 
-def pipeline_runtime_from_mask_to_submission(model, title, proj_path, input_imgs, pred_imgs,
+def pipeline_runtime_from_mask_to_submission(model, title, output_path, input_imgs, pred_imgs,
                                              nb_patch_per_image, index_lim,
                                              save_normalized=False, save_overlay=True):
     """
@@ -200,7 +201,7 @@ def pipeline_runtime_from_mask_to_submission(model, title, proj_path, input_imgs
     ----------
     model : str                                 model name
     title : str                                 title of training
-    proj_path :
+    output_path :                               output path
     input_imgs: list[ndarray.astype(uint8)]     size should be nb_image * nb_patch_per_image
     pred_imgs : list[ndarray.astype(uint8)]     size same as input_imgs, in RGB
     nb_patch_per_image : int                    prod(index_lim)
@@ -212,7 +213,7 @@ def pipeline_runtime_from_mask_to_submission(model, title, proj_path, input_imgs
     -------
     None
     """
-    label_path = os.path.join(proj_path, model, title)
+    label_path = os.path.join(output_path, model, title)
     save_path = os.path.join(label_path, 'complete_test_label_submission')
 
     # Clean the submission files before generation
@@ -229,7 +230,7 @@ def pipeline_runtime_from_mask_to_submission(model, title, proj_path, input_imgs
 
     # Fetch the test image generated to use the masks_to_submission file pipeline.
     complete_label_files = glob.glob(save_path + '/test_*.png')
-    submission_filename = os.path.join(proj_path, model + '_' + title + '_patch' + str(patch_size) + '.csv')
+    submission_filename = os.path.join(output_path, model + '_' + title + '_patch' + str(patch_size) + '.csv')
     masks_to_submission(submission_filename, *complete_label_files)
 
 

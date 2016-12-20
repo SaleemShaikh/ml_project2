@@ -1,16 +1,16 @@
+"""
+FCN base on LeNet, however the model is too simple thus only implemented but
+not tested.
+"""
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import os
 import logging
 from math import ceil
-import sys
 
 import numpy as np
 import tensorflow as tf
-
-import tensorflow.contrib.slim as slim
 
 # VGG_MEAN = [103.939, 116.779, 123.68]
 VGG_MEAN = [0, 0, 0]
@@ -29,7 +29,7 @@ class FCNLeNet:
         rgb: image batch tensor
             Image in rgb shap. Scaled to Intervall [0, 255]
         train: bool
-            Whether to build train or fcn4s graph
+            Whether to build train or fcn8s graph
         num_classes: int
             How many classes should be predicted (by fc8)
         random_init_fc8 : bool

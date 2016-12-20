@@ -1,12 +1,13 @@
 """
-FCN Training flow
+FCN Training flow.
+
+To train the model successfully, it is important to make sure the corresponding path to,
+data set, hyper-parameters, are well defined
 """
 import datetime
 import os
 
-from tf_fcn.fcn32_vgg import FCN32VGG
-
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+os.environ['CUDA_VISIBLE_DEVICES'] = '3'
 os.environ['KERAS_BACKEND'] = 'tensorflow'
 os.environ['KERAS_IMAGE_DIM_ORDERING'] = 'tf'
 
@@ -14,24 +15,25 @@ import numpy as np
 import tensorflow as tf
 
 from keras.preprocessing.image import ImageDataGenerator
-from project2.tf_fcn.fcn8_vgg import FCN8VGG
-from project2.tf_fcn.loss import loss as dloss
-from project2.tf_fcn.fcn_vgg_v2 import fcn4s, fcn32s
+from project2.tf_fcn.fcn_vgg_v2 import fcn8s, fcn32s
 from project2.tf_fcn.utils import add_to_regularization_and_summary, add_gradient_summary, save_image
 
-from project2.utils.data_utils import DirectoryImageLabelIterator, concatenate_images
+from project2.utils.data_utils import DirectoryImageLabelIterator
 from project2.utils.io_utils import get_dataset_dir
+
+# Specify which model to be trained.
+train_function = fcn8s
 
 FLAGS = tf.flags.FLAGS
 tf.flags.DEFINE_integer("batch_size", "4", "batch size for training")
-tf.flags.DEFINE_string("logs_dir", "/home/kyu/.keras/tensorboard/fcn4s_clean/", "path to logs directory")
+tf.flags.DEFINE_string("logs_dir", "/home/kyu/.keras/tensorboard/fcn4s_clean_nothing/", "path to logs directory")
 tf.flags.DEFINE_float("learning_rate", "1e-4", "Learning rate for Adam Optimizer")
 tf.flags.DEFINE_string("model_dir", "/home/kyu/.keras/models/tensorflow", "Path to vgg model mat")
 
 tf.flags.DEFINE_string('mode', "finetune", "Mode train/ test/ finetune/ visualize")
 tf.flags.DEFINE_bool('augmentation', 'False', 'Data runtime augmentation mode : True/ False')
 tf.flags.DEFINE_string('logs_dir_finetune',
-                       '/home/kyu/.keras/tensorboard/clean_fcn4s_finetune_5000/',
+                       '/home/kyu/.keras/tensorboard/clean_fcn4s_finetune_5000_with_rotate_from_scratch/',
                        'Finetune log path')
 
 tf.flags.DEFINE_string("data_dir", get_dataset_dir('prml2'), 'path to data directory')
@@ -40,7 +42,8 @@ tf.flags.DEFINE_bool('debug', "True", "Debug mode: True/ False")
 # tf.flags.DEFINE_string('mode', "visualize", "Mode train/ test/ visualize")
 tf.flags.DEFINE_string("plot_dir", "/home/kyu/Dropbox/git/ml_project2/fcn4s_visual/plot_finetune_clean_5000",
                        "path to plots")
-MAX_ITERATION = int(5000 + 1)
+
+MAX_ITERATION = int(6000 + 1)
 NUM_OF_CLASSESS = 2
 IMAGE_SIZE = 400
 INPUT_SIZE = 224
@@ -108,7 +111,7 @@ def main(argv=None):
     keep_probability = tf.placeholder(tf.float32, name='keep_probability')
     image = tf.placeholder(tf.float32, shape=[None, INPUT_SIZE, INPUT_SIZE, 3], name='input_img_tensor')
     annotation = tf.placeholder(tf.int32, shape=[None, INPUT_SIZE, INPUT_SIZE, 1], name='segmentation')
-    pred_annotation, logits = fcn4s(image, keep_probability, FLAGS)
+    pred_annotation, logits = train_function(image, keep_probability, FLAGS)
 
 
 
@@ -177,31 +180,28 @@ def main(argv=None):
                                                 )
 
     elif FLAGS.mode == 'finetune':
+        gen = None
         if FLAGS.augmentation:
-            rotation = 0.5
-            shift_range = 0.2
-            print("Enable real time data augmentation with rotation {} shift range {}".format(
-                rotation, shift_range
-            ))
-            gen = ImageDataGenerator(
-                # rotation_range=rotation,
-                # width_shift_range=shift_range,
-                # height_shift_range=shift_range,
-                horizontal_flip=True,
-                vertical_flip=True,
-                dim_ordering='tf'
-                )
+            train_itr = DirectoryImageLabelIterator(FLAGS.data_dir, gen, stride=(100, 100),
+                                                    dim_ordering='tf',
+                                                    data_folder='training',
+                                                    image_folder='images', label_folder='groundtruth',
+                                                    batch_size=FLAGS.batch_size,
+                                                    target_size=(INPUT_SIZE, INPUT_SIZE),
+                                                    ratio=1. / 2,
+                                                    rotation='naive',
+                                                    original_img_size=(400, 400),
+                                                    )
         else:
-            gen = None
-        train_itr = DirectoryImageLabelIterator(FLAGS.data_dir, gen, stride=(100, 100),
-                                                dim_ordering='tf',
-                                                data_folder='training',
-                                                image_folder='images', label_folder='groundtruth',
-                                                batch_size=FLAGS.batch_size,
-                                                target_size=(INPUT_SIZE, INPUT_SIZE),
-                                                ratio=1./2,
-                                                original_img_size=(400,400),
-                                                )
+            train_itr = DirectoryImageLabelIterator(FLAGS.data_dir, gen, stride=(100, 100),
+                                                    dim_ordering='tf',
+                                                    data_folder='training',
+                                                    image_folder='images', label_folder='groundtruth',
+                                                    batch_size=FLAGS.batch_size,
+                                                    target_size=(INPUT_SIZE, INPUT_SIZE),
+                                                    ratio=1./2,
+                                                    original_img_size=(400,400),
+                                                    )
 
     elif FLAGS.mode == 'test':
         if tf.gfile.Exists(FLAGS.plot_dir):

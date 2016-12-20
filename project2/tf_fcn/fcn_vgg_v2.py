@@ -1,3 +1,28 @@
+"""
+Implementation of Fully Convolutional Networks, in short, FCN.
+
+The FCN in the project is based on VGG 19 network, and there are two version of
+FCN implemented, FCN 4s, and FCN 32s, basically represent the different detail
+level. FCN4s is has more spatial information since it fuses the information from
+different layers of VGG model.
+
+In our testing, the FCN4s in general provide better results.
+
+Implementation of FCN is not exactly the same as original CVPR paper, since their
+model is implemented in Caffe, but our's in TensorFlow.
+
+Also, the FCN32s model is adapted from FCN4s model from an online github repo.
+
+References
+------------
+    Github: shekkizh
+    https://github.com/shekkizh/FCN.tensorflow
+
+    Long, J., Shelhamer, E., & Darrell, T. (2015).
+        Fully convolutional networks for semantic segmentation.
+        In Proceedings of the IEEE Conference on CVPR (pp. 3431-3440).
+
+"""
 from __future__ import print_function
 import tensorflow as tf
 import numpy as np
@@ -6,13 +31,15 @@ import project2.tf_fcn.utils as utils
 import datetime
 from six.moves import xrange
 
-MAX_ITERATION = int(1e5 + 1)
 NUM_OF_CLASSESS = 2
 IMAGE_SIZE = 224
 MODEL_URL = 'http://www.vlfeat.org/matconvnet/models/beta16/imagenet-vgg-verydeep-19.mat'
 
 
 def vgg_net(weights, image, FLAGS):
+    """
+    Create the VGG net for FCN, without fully connected layers
+    """
     layers = (
         'conv1_1', 'relu1_1', 'conv1_2', 'relu1_2', 'pool1',
 
@@ -52,9 +79,9 @@ def vgg_net(weights, image, FLAGS):
 
 def fcn32s(image, keep_prob, FLAGS=None):
     """
-    Semantic segmentation network definition
+    Semantic segmentation network definition for FCN32 model
     :param image: input image. Should have values in range 0-255
-    :param keep_prob:
+    :param keep_prob: : tensor : should be from 0 - 1, for dropout.
     :return:
     """
     print("Create graph of FCN32s")
@@ -68,7 +95,7 @@ def fcn32s(image, keep_prob, FLAGS=None):
 
     processed_image = utils.process_image(image, mean_pixel)
 
-    with tf.variable_scope("fcn4s"):
+    with tf.variable_scope("fcn32s"):
         image_net = vgg_net(weights, processed_image, FLAGS)
         conv_final_layer = image_net["conv5_3"]
 
@@ -110,11 +137,11 @@ def fcn32s(image, keep_prob, FLAGS=None):
 
 
 
-def fcn4s(image, keep_prob, FLAGS=None):
+def fcn8s(image, keep_prob, FLAGS=None):
     """
-    Semantic segmentation network definition
+    Semantic segmentation network definition for FCN8 model
     :param image: input image. Should have values in range 0-255
-    :param keep_prob:
+    :param keep_prob: : tensor : should be from 0 - 1, for dropout.
     :return:
     """
     print("Create graph of FCN4s")
@@ -129,6 +156,9 @@ def fcn4s(image, keep_prob, FLAGS=None):
     processed_image = utils.process_image(image, mean_pixel)
 
     with tf.variable_scope("fcn4s"):
+        # Should be 'fcn8s', but since all the model are saved with
+        # this name scope, change it to fcn8s would require we train the
+        # model from scratch. Please tolerate this.
         image_net = vgg_net(weights, processed_image, FLAGS)
         conv_final_layer = image_net["conv5_3"]
 

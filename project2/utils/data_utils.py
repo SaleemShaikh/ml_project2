@@ -1158,7 +1158,8 @@ class DirectoryImageLabelIterator(Iterator):
                 if not self.image_only:
                     # update self.batch_classes
                     y = self._load_patch(fname, center_x, center_y, greyscale=True,
-                                             fromdict=self.preload == 2, label=True)
+                                         fromdict=self.preload == 2, label=True,
+                                         rotate_degree=rotate)
             batch_x[i] = x
             if not self.image_only:
                 batch_y[i] = y
@@ -1230,9 +1231,11 @@ class DirectoryImageLabelIterator(Iterator):
         nb_per_image = len(valid_patch_per_image)
         print('number of batch generated per image is {}'.format(nb_per_image))
 
+        # """ TESTING CLOSE THE NORMAL BATCH ARRAY """
         for file_index in self.file_indices:
             for center in valid_patch_per_image:
                 self.batch_array.append((self.img_files[file_index], center))
+
         if self.rotation:
             if self.rotation == 'naive':
                 for file_index in self.file_indices:

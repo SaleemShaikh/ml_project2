@@ -1,59 +1,76 @@
 """
-
+Author: Kaicheng Yu
 FCN evaluation pipeline to generate submission for Kaggle
 
 Evaluate FCN model based on the FCN model trained, it should process the test image
 and generate patches aligning with the same format.
 
-2016.12.15
+In ordering to use this file, you need to install the following packages:
+    - tensorflow
+    - scipy
+    - keras
+
+In order to produce the exact result, you should also download the corresponding model meta-data and specified
+them in 'fcn_dir'
+
+It is always better if you have a powerful GPU and you could speficify the device number in "CUDA_VISIBLE_DEVICES"
+And it takes approximately 90s to generate the corresponding submission file and related prediction images on a machine with
+using one nVIDIA Titan Z GPU
+
 """
 
-import datetime
 import os
 
+##################################################################
+#          Runtime path TO BE SET before run                     #
+##################################################################
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '2'
+PROJECT_DIR = '/cvlabdata1/home/kyu/ml_project2'
+os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 os.environ['KERAS_BACKEND'] = 'tensorflow'
 
+##################################################################
+#           End of run time variable settings                    #
+##################################################################
+
+
+import datetime
 import numpy as np
 import tensorflow as tf
 from scipy.misc import imresize
 
-from tf_fcn.fcn32_vgg import FCN32VGG
-from project2.tf_fcn.fcn8_vgg import FCN8VGG
-from project2.tf_fcn.loss import loss as dloss
-from project2.tf_fcn.fcn_vgg_v2 import fcn4s, fcn32s
-from project2.tf_fcn.utils import add_to_regularization_and_summary, save_image
-from project2.utils.data_utils import DirectoryImageLabelIterator, concatenate_images, make_img_overlay, \
+# Import the FCN 4s and FCN 32s model. For different prediction
+from project2.tf_fcn.fcn_vgg_v2 import fcn8s,fcn32s
+from project2.tf_fcn.utils import save_image
+from project2.utils.data_utils import DirectoryImageLabelIterator, make_img_overlay, \
     greyscale_to_rgb, concatenate_patches, array_to_img
-from project2.utils.io_utils import get_dataset_dir
-from project2.utils.mask_to_submission import create_concat_test_from_images, \
-    pipeline_runtime_from_mask_to_submission, concatenate_images_and_save
+from project2.utils.mask_to_submission import pipeline_runtime_from_mask_to_submission
 
 
+# Declaration of TF flags
+FLAGS = tf.flags.FLAGS
 
-
-
-TITLE = 'fcn4s_visual'
+# Evaluation directory, settings and hyper-parameters
+MODLE_NAME = 'clean_fcn4s_finetune_5000_with_rotate_from_scratch'
+# MODLE_NAME = 'clean_fcns_finetune_5000_with_rotate'
+# MODLE_NAME = 'fcn4s_finetune_5000'
+# MODLE_NAME = 'fcn4s_finetune_5000_newdata'
 PLOT_DIR = 'plot_finetune'
-ITER = '4000'
+ITER = '0'
 index_lim = 3
 
-FLAGS = tf.flags.FLAGS
+# Relative path setting
+tf.flags.DEFINE_string("fcn_dir", os.path.join(PROJECT_DIR, 'tensorboard', MODLE_NAME), "Path to FCN model")
+tf.flags.DEFINE_string('output_dir', os.path.join(PROJECT_DIR, 'output'), 'output path')
+tf.flags.DEFINE_string("data_dir", os.path.join(PROJECT_DIR, 'data'), 'path to data directory')
+tf.flags.DEFINE_string("model_dir", os.path.join(PROJECT_DIR, 'model'), "Path to vgg model mat")
+tf.flags.DEFINE_string("plot_dir", os.path.join(PROJECT_DIR, MODLE_NAME, PLOT_DIR + '_' + ITER), "path to plots")
 tf.flags.DEFINE_integer("batch_size", "9", "batch size for visualization")
-tf.flags.DEFINE_string("logs_dir", "/home/kyu/.keras/tensorboard/" + TITLE, "path to logs directory")
-tf.flags.DEFINE_string('project_dir', "/home/kyu/Dropbox/git/ml_project2", 'path to dropbox for synchronization')
-tf.flags.DEFINE_string("plot_dir", os.path.join(FLAGS.project_dir, TITLE, PLOT_DIR + '_' + ITER), "path to plots")
-# tf.flags.DEFINE_string("fcn_dir", "/home/kyu/.keras/tensorboard/fcn4s_finetune", "Path to FCN model")
-tf.flags.DEFINE_string("fcn_dir", "/home/kyu/.keras/tensorboard/fcn4s_finetune_5000_newdata", "Path to FCN model")
-tf.flags.DEFINE_string("data_dir", get_dataset_dir('prml2'), 'path to data directory')
 tf.flags.DEFINE_bool('debug', "False", "Debug mode: True/ False")
 tf.flags.DEFINE_string('mode', "predict", "Mode predict/ test/ visualize")
-# tf.flags.DEFINE_string('mode', "visualize", "Mode predict/ test/ visualize")
 
 # Initialize the model
-tf.flags.DEFINE_string("model_dir", "/home/kyu/.keras/models/tensorflow", "Path to vgg model mat")
-
+eval_function = fcn8s
 NUM_OF_CLASSESS = 2
 IMAGE_SIZE = 400
 INPUT_SIZE = 224
@@ -89,29 +106,9 @@ def main(argv=None):
     annotation = tf.placeholder(tf.float32, shape=[None, INPUT_SIZE, INPUT_SIZE, 1], name='groundtruth')
     keep_probability = tf.placeholder(tf.float32, name='keep_probability')
 
-    pred_annotation, logits = fcn4s(image, keep_prob=keep_probability, FLAGS=FLAGS)
+    pred_annotation, logits = eval_function(image, keep_prob=keep_probability, FLAGS=FLAGS)
     pred_softmax = tf.nn.softmax(logits, name="Softmax")
 
-    loss = tf.reduce_mean(
-        (tf.nn.sparse_softmax_cross_entropy_with_logits(
-            logits, tf.squeeze(pred_annotation, squeeze_dims=[3], name='xentropy')
-        ))
-    )
-
-    # Summary node
-    tf.image_summary('input_image', image, max_images=2)
-    tf.image_summary('ground_truth', tf.cast(tf.mul(annotation, 128), tf.uint8), max_images=2)
-    tf.image_summary('pred_annotation', tf.cast(tf.abs(tf.mul(pred_annotation, 128)), tf.uint8), max_images=2)
-    tf.scalar_summary('entropy', loss)
-
-    trainable_var = tf.trainable_variables()
-    if FLAGS.debug:
-        for var in trainable_var:
-            # Monitor the regularization and summary
-            add_to_regularization_and_summary(var)
-
-    print("setting up summary op ...")
-    # summary_op = tf.merge_all_summaries()
     if FLAGS.mode == 'visualize':
         valid_itr = DirectoryImageLabelIterator(FLAGS.data_dir, None, stride=(128, 128),
                                                 dim_ordering='tf',
@@ -143,26 +140,22 @@ def main(argv=None):
 
     print("Setting up saver")
     saver = tf.train.Saver()
-    summary_writer = tf.train.SummaryWriter(FLAGS.logs_dir, sess.graph)
 
     sess.run(tf.global_variables_initializer())
     ckpt = tf.train.get_checkpoint_state(FLAGS.fcn_dir)
     if ckpt and ckpt.model_checkpoint_path:
-        # ckpt_dir, _ = os.path.split(ckpt.model_ckeckpoint_path)
-        # prefix = 'model.ckpt-'
-        # ckpt_target = os.path.join(ckpt_dir, prefix + ITER)
-        # if os.path.exists(ckpt_target):
-        #     saver.restore(sess, ckpt_target)
-        # else:
-        # ckpt_list = saver.recover_last_checkpoints(FLAGS.fcn_dir)
         prefix = 'model.ckpt-'
         ckpt_path = os.path.join(FLAGS.fcn_dir, prefix + ITER)
         if os.path.exists(ckpt_path +'.meta'):
             print("Restoring model from {}".format(ckpt_path))
             saver.restore(sess, ckpt_path)
         else:
-            print("Restore from default checkpoint")
-            saver.restore(sess, ckpt.model_checkpoint_path)
+            if ITER != '0':
+                if FLAGS.mode == 'predict':
+                    raise ValueError("Should pass a valid model into prediction case")
+            else:
+                print("Restore from default checkpoint")
+                saver.restore(sess, ckpt.model_checkpoint_path)
         print('Model restored')
 
     if FLAGS.mode == 'visualize':
@@ -183,15 +176,13 @@ def main(argv=None):
                 pred_img_rgb = greyscale_to_rgb(pred_img, pixel_depth=1)
                 gt_rgb = greyscale_to_rgb(gt, pixel_depth=1)
                 res = np.concatenate((gt_rgb, img, pred_img_rgb), 1)
-                # res = make_img_overlay(img, pred_img, 1)
-                # res = concatenate_images(res, gt)
-                # res.save(FLAGS.plot_dir + "/overlay_" + str(index) + '.png')
                 save_image(res, FLAGS.plot_dir, name='concat_' + str(index))
                 save_image(valid_image[itr].astype(np.uint8), FLAGS.plot_dir, name="inp_" + str(index))
                 save_image(valid_annotation[itr].astype(np.uint8), FLAGS.plot_dir, name="gt_" + str(index))
                 save_image(pred[itr].astype(np.uint8), FLAGS.plot_dir, name="pred_" + str(index))
                 print("Saved image: %d" % index)
                 index += 1
+
     if FLAGS.mode == 'predict':
         # Create prediction pipeline
         index = 0
@@ -250,7 +241,7 @@ def main(argv=None):
 
         # After the loop:
         # Revoke the method in masks_to_submission
-        pipeline_runtime_from_mask_to_submission(TITLE, PLOT_DIR + '_' + ITER, FLAGS.project_dir,
+        pipeline_runtime_from_mask_to_submission(MODLE_NAME, PLOT_DIR + '_' + ITER, FLAGS.output_dir,
                                                  input_list, result_list,
                                                  index_lim * index_lim,
                                                  (index_lim, index_lim),
@@ -261,7 +252,7 @@ def main(argv=None):
                                                 nb_patch_per_image=index_lim*index_lim)
 
         prob_concat = np.asanyarray(prob_concat_array[0], dtype=np.float32)
-        np.save(os.path.join(FLAGS.project_dir, TITLE, 'probability_{}_{}.gz'.format(TITLE,ITER)), prob_concat,
+        np.save(os.path.join(FLAGS.output_dir, MODLE_NAME, 'probability_{}_{}.gz'.format(MODLE_NAME, ITER)), prob_concat,
                 allow_pickle=False)
         # Save the probability maps
         for ind, prob_map in enumerate(prob_concat_array[0]):

@@ -16,7 +16,6 @@ os.environ['KERAS_BACKEND'] = 'tensorflow'
 os.environ['KERAS_IMAGE_DIM_ORDERING'] = 'tf'
 
 import datetime
-import numpy as np
 import tensorflow as tf
 
 from keras.preprocessing.image import ImageDataGenerator

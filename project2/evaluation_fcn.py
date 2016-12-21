@@ -17,6 +17,8 @@ It is always better if you have a powerful GPU and you could speficify the devic
 And it takes approximately 90s to generate the corresponding submission file and related prediction images on a machine with
 using one nVIDIA Titan Z GPU
 
+Approximately, running time on a MacBook Pro is XXX.
+With GPU, the running time is around 120 seconds, from loading weights and generate the prediction csv.
 """
 
 import os
@@ -25,14 +27,26 @@ import os
 #          Runtime path TO BE SET before run                     #
 ##################################################################
 
+# Set to be the root folder of project 2 package. Please refer
+# details to READ.ME.
 PROJECT_DIR = '/cvlabdata1/home/kyu/ml_project2'
+
+# Cuda visiable device mask for CUDA enabled GPU
 os.environ['CUDA_VISIBLE_DEVICES'] = '1'
-os.environ['KERAS_BACKEND'] = 'tensorflow'
+
 
 ##################################################################
 #           End of run time variable settings                    #
 ##################################################################
 
+
+os.environ['KERAS_BACKEND'] = 'tensorflow'
+try:
+    import keras.backend as K
+    K.set_image_dim_ordering('tf')
+except:
+    raise ImportError("Please install keras with pip install keras, or follow the"
+                      "guideline from http://keras.io")
 
 import datetime
 import numpy as np
@@ -40,8 +54,8 @@ import tensorflow as tf
 from scipy.misc import imresize
 
 # Import the FCN 4s and FCN 32s model. For different prediction
-from project2.tf_fcn.fcn_vgg_v2 import fcn8s,fcn32s
-from project2.tf_fcn.utils import save_image
+from project2.model.fcn_vgg_v2 import fcn8s,fcn32s
+from project2.model.utils import save_image
 from project2.utils.data_utils import DirectoryImageLabelIterator, make_img_overlay, \
     greyscale_to_rgb, concatenate_patches, array_to_img
 from project2.utils.mask_to_submission import pipeline_runtime_from_mask_to_submission
@@ -51,11 +65,11 @@ from project2.utils.mask_to_submission import pipeline_runtime_from_mask_to_subm
 FLAGS = tf.flags.FLAGS
 
 # Evaluation directory, settings and hyper-parameters
-MODLE_NAME = 'clean_fcn4s_finetune_5000_with_rotate_from_scratch'
+MODLE_NAME = 'fcn8s_best_model'
 # MODEL_NAME = 'clean_fcns_finetune_5000_with_rotate'
 # MODEL_NAME = 'fcn4s_finetune_5000'
 # MODEL_NAME = 'fcn4s_finetune_5000_newdata'
-PLOT_DIR = 'plot_finetune'
+PLOT_DIR = 'plot_finetune_new'
 ITER = '4000'
 index_lim = 3
 
@@ -78,7 +92,7 @@ INPUT_SIZE = 224
 
 def main(argv=None):
     """
-    Adapt and inspired by train_fcn.py
+    Adapted from and inspired by train_fcn.py
 
     Update 2016.12.16
         Implement the visualize pipeline to generate concatenated images
@@ -96,7 +110,7 @@ def main(argv=None):
 
     """
 
-    # Make dir of plot dir
+    # Clean and mkdir of plot dir
     if tf.gfile.Exists(FLAGS.plot_dir):
         tf.gfile.DeleteRecursively(FLAGS.plot_dir)
     tf.gfile.MakeDirs(FLAGS.plot_dir)
@@ -256,8 +270,16 @@ def main(argv=None):
                 allow_pickle=False)
         # Save the probability maps
         for ind, prob_map in enumerate(prob_concat_array[0]):
-            # TODO Create heatmaps maybe
             save_image(array_to_img(prob_map), FLAGS.plot_dir, 'prob_' + str(ind))
+
+
+def execute():
+    """
+    API to be called by other python file, in order to execute the FCN evaluation.
+
+    """
+    tf.app.run(main)
 
 if __name__ == '__main__':
     tf.app.run()
+

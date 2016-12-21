@@ -1,16 +1,37 @@
 # Project 2 Road Extraction from satellite image
 PRML project 2 Road Extraction
 
+
 ## Running requirement and installation
 In order to run the ```run.py```, please make sure you have successfully
 installed all the required library and set the corresponding paths correctly.
 
-### Saved weights and meta data
+### 1. Saved weights and meta data
 Since our best model is trained in TensorFlow, you will need the complete
 saved weights to get the evaluation results.
-You could get the link
-Our run-time
+You could get the trained weights and related testing files through the link
+
+Unzip the file and put
+
+### 2. Install requiring library
+
+To only reproduce the best submission csv file and corresponding prediction images, you only need
+to install the following library in python2.7 interpreter. It is strongly that you
+create a virtual environment to install these library so that you could easily delete
+them afterwards. Running such file under Python 3 is never tested, although it should
+not be a problem.
+
 * Keras
+```pip install keras```
+* tensorflow
+```pip install tensorflow```
+* PIL
+```pip install pillow```
+
+
+
+### Environment vairable setting
+
 
 
 ## Project directory 

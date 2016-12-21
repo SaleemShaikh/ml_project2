@@ -171,7 +171,7 @@ def conv_block_original(input_tensor, kernel_size, filters, stage, block, stride
     x = BatchNormalization(axis=bn_axis, name=bn_name_base + '2b')(x)
     x = Activation('relu')(x)
 
-    shortcut = Convolution2D(nb_filter2, kernel_size, kernel_size, subsample=strides,border_mode='same',
+    shortcut = Convolution2D(nb_filter2, 1, 1, subsample=strides,border_mode='same',
                              name=conv_name_base + '1')(input_tensor)
     shortcut = BatchNormalization(axis=bn_axis, name=bn_name_base + '1')(shortcut)
 

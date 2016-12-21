@@ -136,6 +136,9 @@ def plot_train_test(train_errors, test_errors, x_factor=None, show=False,
     :param plot_type: 0 for smooth, 1 for scatter
     """
 
+    if x_factor is None:
+        x_factor = range(len(train_errors))
+
     if plot_type == 0:
         plt.plot(x_factor, train_errors, color=color[0], label=names[0], linestyle=linestyle)
         plt.plot(x_factor, test_errors, color=color[1], label=names[1], linestyle=linestyle)
@@ -153,7 +156,7 @@ def plot_train_test(train_errors, test_errors, x_factor=None, show=False,
 
     if show:
         plt.show()
-    plt_path = get_plot_path("train_test " + filename)
+    plt_path = get_plot_path("train_test_" + filename)
     plt.savefig(plt_path)
     plt.close()
     return plt_path

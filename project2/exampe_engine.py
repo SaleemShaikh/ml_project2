@@ -25,8 +25,9 @@ import os
 import sys
 
 
-from .utils.io_utils import get_absolute_dir_project, get_weight_path
+from .utils.io_utils import get_absolute_dir_project, get_weight_path, get_model_path
 from .utils.io_utils import cpickle_load, cpickle_save
+from .utils.data_utils import DirectoryPatchesIterator
 
 
 
@@ -66,7 +67,9 @@ class ExampleEngine(object):
                  lr_decay=False, early_stop=False,
                  save_per_epoch=False,
                  batch_size=128, nb_epoch=100,
+                 samples_per_epoch=128*200,
                  verbose=2, logfile=None, save_log=True,
+                 save_model=True,
                  title='default'):
         """
 
@@ -92,7 +95,7 @@ class ExampleEngine(object):
         if isinstance(data, (list,tuple)):
             assert len(data) == 2
             self.train = data
-        elif isinstance(data, (ImageDataGenerator, Iterator)):
+        elif isinstance(data, (ImageDataGenerator, Iterator, DirectoryPatchesIterator)):
             self.train = data
             self.mode = 1
         else:
@@ -108,7 +111,7 @@ class ExampleEngine(object):
 
         if self.mode == 1:
             if validation is not None:
-                assert isinstance(validation, (Iterator,))
+                assert isinstance(validation, (Iterator, DirectoryPatchesIterator))
                 self.nb_te_sample = validation.nb_sample
             else:
                 self.nb_te_sample = None
@@ -123,6 +126,7 @@ class ExampleEngine(object):
         self.verbose = verbose
         self.logfile = logfile
         self.log_flag = save_log
+        self.save_model = save_model
         self.default_stdout = sys.stdout
         if logfile is None:
             if hasattr(model, 'cov_mode'):
@@ -142,16 +146,20 @@ class ExampleEngine(object):
 
         self.nb_epoch = nb_epoch
         self.batch_size = batch_size
+        self.samples_per_epoch = samples_per_epoch
 
         # Set the weights
         self.weight_path = get_weight_path(
             "{}-{}_{}.weights".format(self.title, model.name, self.mode),
             'dataset')
+        self.model_path = get_model_path(
+            "{}-{}_{}_model.h5".format(self.title, model.name, self.mode)
+        )
         logging.debug("weights path {}".format(self.weight_path))
         self.save_weight = save_weight
         self.load_weight = load_weight
         self.save_per_epoch = save_per_epoch
-        if not os.path.exists(self.weight_path):
+        if self.load_weight == True and not os.path.exists(self.weight_path):
             print("weight not found, create a new one or transfer from current weight")
             self.load_weight = False
         self.cbks = []
@@ -193,17 +201,31 @@ class ExampleEngine(object):
         if self.save_weight and self.save_per_epoch:
             # Potentially remove the tmp file.
             os.remove(self.weight_path + '.tmp')
-            print("Save weights to {}".format(self.weight_path))
             self.model.save_weights(self.weight_path, overwrite=True)
+            # There seem to be a bug, where ValueError is thrown when we print to stdout during training.
+            try:
+                print("Save weights to {}".format(self.weight_path))
+            except:
+                pass
 
         if self.log_flag:
             sys.stdout.close()
+
+        # Save the model.
+        if self.save_model:
+            self.model.save(self.model_path)
+            # There seem to be a bug, where ValueError is thrown when we print to stdout during training.
+            try:
+                print("Saving model to {}".format(self.model_path))
+            except:
+                pass
+
         return history
 
     def fit_generator(self):
         print("{} fit with generator".format(self.model.name))
         history = self.model.fit_generator(
-            self.train, samples_per_epoch=128*200, nb_epoch=self.nb_epoch,
+            self.train, samples_per_epoch=self.samples_per_epoch, nb_epoch=self.nb_epoch,
             nb_worker=4,
             validation_data=self.validation, nb_val_samples=self.nb_te_sample,
             verbose=self.verbose,

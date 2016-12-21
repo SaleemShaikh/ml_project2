@@ -41,7 +41,7 @@ def cpickle_save(data, output_file, ftype='gz'):
     """
 
     if ftype is 'gz' or ftype is 'gzip':
-        print("compress with gz")
+        # print("compress with gz")
         output_file = output_file + "." + ftype
         f = gzip.open(output_file, 'wb')
     elif ftype is '':
@@ -66,8 +66,20 @@ def get_dataset_dir(filename=None):
     return os.path.join(datadir_base, 'datasets', filename)
 
 
-def get_road_image_dir():
-    return os.path.join(get_dataset_dir(), 'prml2')
+def get_models_dir():
+    """ Returns the directory where the models are stored.
+
+    Returns
+    -------
+    path : str
+    """
+    datadir_base = os.path.expanduser(os.path.join('~', '.keras'))
+
+    return os.path.join(datadir_base, 'models')
+
+
+def get_road_image_dir(dataset='prml2'):
+    return os.path.join(get_dataset_dir(), dataset)
 
 
 def get_project_dir():
@@ -111,6 +123,13 @@ def get_weight_path(filename, dir='project'):
         if not os.path.exists(dir):
             os.mkdir(dir)
         return os.path.join(dir, filename)
+
+def get_model_path(filename):
+    dir_base = os.path.expanduser(os.path.join('~', '.keras'))
+    dir = os.path.join(dir_base, 'models')
+    if not os.path.exists(dir):
+        os.mkdir(dir)
+    return os.path.join(dir, filename)
 
 def get_plot_path(filename, dir='project'):
     if dir is 'project':

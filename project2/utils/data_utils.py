@@ -9,11 +9,12 @@ import os
 import re
 import scipy.ndimage as ndi
 from PIL import Image
+import logging
 
 import keras.backend as K
 from keras.preprocessing.image import Iterator, ImageDataGenerator, DirectoryIterator
 
-
+from utils.image_utils import extractLabeledPatches, load_img
 
 
 #######################################################
@@ -178,7 +179,7 @@ def make_img_overlay(img, predicted_img, pixel_depth=255):
     else:
         color_mask[:, :, 0] = predicted_img * pixel_depth
 
-    if not img.dtype == np.uint:
+    if not img.dtype == np.uint or img.dtype == np.uint8:
         img8 = img_float_to_uint8(img)
     else:
         img8 = img
@@ -670,7 +671,9 @@ class RoadImageIterator(Iterator):
         self.label_folder = os.path.join(self.img_folder, label_folder)
         self.org_folder = os.path.join(self.img_folder, image_folder)
 
-        white_list_formats = {'png', 'jpg', 'jpeg', 'bmp'}
+        # print(self.img_folder)
+
+        white_list_formats = {'png', 'jpg', 'jpeg', 'bmp', 'tiff'}
 
         # first, count the number of samples and classes
         self.nb_sample = 0
@@ -700,7 +703,7 @@ class RoadImageIterator(Iterator):
                         break
                 if is_valid:
                     self.nb_sample += 1
-            if subdir is 'groundtruth':
+            if subdir is label_folder:
                 self.img_files = file_list
             else:
                 self.label_files = file_list
@@ -1407,6 +1410,276 @@ class DirectoryImageLabelIterator(Iterator):
                 return load_img(absolute_path, greyscale, target_size=target_size)
 
     @staticmethod
-    @DeprecationWarning
     def concatenate_patches(batches, index_lim, dim_ordering='tf', nb_image_per_batch=1):
         return concatenate_patches(batches, index_lim, dim_ordering, nb_image_per_batch)
+
+
+class DirectoryPatchesIterator(object):
+    def __init__(self, directory,
+                 data_folder='training', label_folder='groundtruth', image_folder='images',
+                 target_size=(16, 16), stride=(16, 16),
+                 color_mode='rgb',
+                 dim_ordering='default',
+                 classes={'non-road': 0, 'road': 1},
+                 batch_size=128
+                 # shuffle=True, seed=None,
+                 # save_to_dir=None, save_prefix='', save_format='jpeg'
+                 ):
+        """
+
+        Parameters
+        ----------
+        directory
+        image_data_generator
+
+        target_size : tuple, int32
+            2-tuple, width and height of the image patches to be extracted.
+
+        stride : tuple, int32
+            2-tuple, width and height of the stride to make when extracting patches.
+
+        color_mode
+        dim_ordering
+        classes
+        class_mode
+        batch_size
+        shuffle
+        seed
+        save_to_dir
+        save_prefix
+        save_format
+        """
+
+        # Set image dimension ordering. th: (ch, height, width), tf: (height, width, ch)
+        if dim_ordering == 'default':
+            dim_ordering = K.image_dim_ordering()
+
+        # Save local properties.
+        self.directory = directory
+        self.target_size = target_size
+        self.stride = stride
+        self.batchSize = batch_size
+
+        # Queues for input images of both classes.
+        self.patchesBackground = []
+        self.patchesSignal = []
+
+        if color_mode not in {'rgb', 'grayscale'}:
+            raise ValueError('Invalid color mode:', color_mode,
+                             '; expected "rgb" or "grayscale".')
+        self.color_mode = color_mode
+        self.dim_ordering = dim_ordering
+
+        if self.color_mode == 'rgb':
+            if self.dim_ordering == 'tf':
+                self.image_shape = self.target_size + (3,)
+            else:
+                self.image_shape = (3,) + self.target_size
+        else:
+            if self.dim_ordering == 'tf':
+                self.image_shape = self.target_size + (1,)
+            else:
+                self.image_shape = (1,) + self.target_size
+
+        # Create paths to input files (X an y).
+        self.data_folder = os.path.join(directory, data_folder)
+        self.label_folder = os.path.join(self.data_folder, label_folder)
+        self.image_folder = os.path.join(self.data_folder, image_folder)
+
+        self.classes = classes
+
+        # self.save_to_dir = save_to_dir
+        # self.save_prefix = save_prefix
+        # self.save_format = save_format
+
+        white_list_formats = {'png', 'jpg', 'jpeg', 'bmp', 'tiff'}
+
+        self.nb_class = len(classes)
+        self.class_indices = dict(zip(classes, range(len(classes))))
+
+        # Number of samples.
+        self.nb_sample = 0
+
+        # Count number of samples.
+        dirs = (self.label_folder, self.image_folder)
+        for subdir in dirs:
+            file_list = []
+            # subpath = os.path.join(self.data_folder, str(subdir))
+            for fname in sorted(os.listdir(subdir)):
+                is_valid = False
+                for extension in white_list_formats:
+                    if fname.lower().endswith('.' + extension):
+                        file_list.append(fname)
+                        is_valid = True
+                        break
+                if is_valid:
+                    self.nb_sample += 1
+            if subdir is self.label_folder:
+                self.label_files = file_list
+            else:
+                self.img_files = file_list
+
+        # check that we have same number of images and labels.
+        assert len(self.label_files) == len(self.img_files)
+        # Check that both image and labels have the same name.
+        for img, label in zip(self.img_files, self.label_files):
+            assert img == label
+
+        # Save filenames.
+        self.filenames = self.img_files
+
+        self.nb_sample //= 2
+        print('Found %d images belonging to %d classes.' % (self.nb_sample, self.nb_class))
+
+        # Reset the counter indexing images to be fed into training.
+        self._resetImgIdx()
+
+
+    def _pushBackPatchesBackground(self, patches):
+        self.patchesBackground.extend(patches)
+
+    def _pushBackPatchesSignal(self, patches):
+        self.patchesSignal.extend(patches)
+
+
+    def _popFrontPatchesBackground(self, num):
+        if num > len(self.patchesBackground):
+            logging.warn('Request for {num} patches in list of size {s}, only {s} items'
+                         'are returned'.format(num=num, s=len(self.patchesBackground)))
+        patches = self.patchesBackground[:num]
+        self.patchesBackground = self.patchesBackground[num:]
+        return patches
+
+    def _popFrontPatchesSignal(self, num):
+        if num > len(self.patchesSignal):
+            logging.warn('Request for {num} patches in list of size {s}, only {s} items'
+                         'are returned'.format(num=num, s=len(self.patchesSignal)))
+        patches = self.patchesSignal[:num]
+        self.patchesSignal = self.patchesSignal[num:]
+        return patches
+
+
+    def _resetImgIdx(self):
+        """ Resets the counter of current index of the image to be fed into the training.
+        """
+        self._imgIdx = 0
+
+
+    def _getNextImgIdx(self):
+        """ Works as a counter of indices of images to be fed into the training.
+
+        Returns
+        -------
+        idx : int32
+            Current image Index.
+        """
+        currentIdx = self._imgIdx
+        self._imgIdx = (self._imgIdx + 1) % self.nb_sample
+
+        return currentIdx
+
+
+    def __next__(self, *args, **kwargs):
+        return self.next(*args, **kwargs)
+
+
+    # def _checkBatch(self, x, y):
+    #     for p, l in zip(x, y):
+    #         sumPx = np.sum(p)
+    #
+    #         # black
+    #         if sumPx == 0:
+    #             assert(l[0] == 1 and l[1] == 0)
+    #
+    #         # white
+    #         elif sumPx == p.shape[0] * p.shape[1] * p.shape[2]:
+    #             assert(l[0] == 0 and l[1] == 1)
+    #
+    #         else:
+    #             assert Exception('Patch has unexpected pixel value {pv}'.format(pv=sumPx))
+
+
+    def next(self):
+        # Refill the images and labels queues
+        # print('len patches BACKGROUND = {}'.format(len(self.patchesBackground)))
+        # print('len patches SIGNAL = {}'.format(len(self.patchesSignal)))
+
+        if (len(self.patchesBackground) < self.batchSize) or \
+           (len(self.patchesSignal) < self.batchSize):
+
+            while (len(self.patchesBackground) < 100 * self.batchSize) or \
+                  (len(self.patchesSignal) < 100 * self.batchSize):
+
+                newFileIdx = self._getNextImgIdx()
+
+                # print('=== Loading new image seq = {s}. ==='.format(s=newFileIdx))
+
+                imgDataFile  = os.path.join(self.image_folder, self.filenames[newFileIdx])
+                imgLabelFile = os.path.join(self.label_folder, self.filenames[newFileIdx])
+
+                imgData = load_img(imgDataFile, greyscale=False)
+                imgLabel = load_img(imgLabelFile, greyscale=True)
+
+                # Normalize, so that all pixels' values are in range [0.0, 1.0]
+                # imgData  = normalizeImage(imgData, 1.0 / 255.0)
+                # imgLabel = normalizeImage(imgLabel, 1.0 / 255.0)
+
+                newPatchesBgrd, newPatchesSig = \
+                    extractLabeledPatches(imgData, imgLabel, self.target_size, self.stride, 0.25)
+
+                # Convert to numpy array and normalize to pixel values [0.0, 1.0]
+                newPatchesBgrdNorm = [img_to_array(p, dim_ordering=self.dim_ordering) / 255.0 for p in newPatchesBgrd]
+                newPatchesSigNorm  = [img_to_array(p, dim_ordering=self.dim_ordering) / 255.0 for p in newPatchesSig]
+
+                if len(self.patchesBackground) < 100 * self.batchSize:
+                    self._pushBackPatchesBackground(newPatchesBgrdNorm)
+
+                if len(self.patchesSignal) < 100 * self.batchSize:
+                    self._pushBackPatchesSignal(newPatchesSigNorm)
+
+        numBgrdSamples = self.batchSize // 2
+        numSigSamples = self.batchSize - numBgrdSamples
+
+        # images (X data)
+        patchesBatch = []
+        patchesBatch.extend(self._popFrontPatchesBackground(numBgrdSamples))
+        patchesBatch.extend(self._popFrontPatchesSignal(numSigSamples))
+        assert(len(patchesBatch) == self.batchSize)
+
+        # labels (y data)
+        # labelsBgrd = np.zeros(numBgrdSamples)
+        # labelsSig = np.ones(numSigSamples)
+        # labelsBatch = np.hstack((labelsBgrd, labelsSig))
+
+        labelsBatch = np.vstack((np.hstack((np.ones((numBgrdSamples, 1), dtype=np.int32),
+                                            np.zeros((numBgrdSamples, 1), dtype=np.int32))),
+                                 np.hstack((np.zeros((numSigSamples, 1), dtype=np.int32),
+                                            np.ones((numSigSamples, 1), dtype=np.int32)))))
+
+        indices = np.random.permutation(self.batchSize)
+
+        batch_x = np.zeros((self.batchSize,) + self.image_shape)
+        for i in range(self.batchSize):
+            batch_x[i] = patchesBatch[indices[i]]
+
+        batch_y = labelsBatch[indices]
+
+        # debug
+        # self._checkBatch(batch_x, batch_y)
+
+        return batch_x, batch_y
+
+# Tests
+if __name__ == "__main__":
+    it = DirectoryPatchesIterator('/Users/janbednarik/epfl/2016-fall/PCML/projects/proj2/ext_data/massachusetts',
+                                                  data_folder='patches',
+                                                  label_folder='label',
+                                                  image_folder='sat',
+                                                  target_size=(16, 16),
+                                                  stride=(16, 16),
+                                                  batch_size=64
+                                                  )
+
+    next(it)
+
+

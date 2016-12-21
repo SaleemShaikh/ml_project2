@@ -27,7 +27,7 @@ from __future__ import print_function
 import tensorflow as tf
 import numpy as np
 
-import project2.tf_fcn.utils as utils
+import project2.model.utils as utils
 import datetime
 from six.moves import xrange
 
@@ -144,7 +144,7 @@ def fcn8s(image, keep_prob, FLAGS=None):
     :param keep_prob: : tensor : should be from 0 - 1, for dropout.
     :return:
     """
-    print("Create graph of FCN4s")
+    print("Create graph of FCN8s")
     print("setting up vgg initialized conv layers ...")
     model_data = utils.get_model_data(FLAGS.model_dir, MODEL_URL)
 

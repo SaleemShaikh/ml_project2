@@ -8,14 +8,9 @@ containing 'project2' package.
 
 
 """
-# import os
-# import sys
+import os
+import sys
 
-# PROJECT_PATH, _ = os.path.split(os.getcwd())
-# try:
-#     sys.path.index(PROJECT_PATH)
-# except ValueError:
-#     sys.path.append(PROJECT_PATH)
 import project2.evaluation_fcn as eval_fcn
 
 

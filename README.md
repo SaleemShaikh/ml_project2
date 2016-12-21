@@ -25,8 +25,16 @@ not be a problem.
 ```pip install keras```
 * tensorflow
 ```pip install tensorflow```
-* PIL
-```pip install pillow```
+* Other python packages
+```python
+[
+'matplotlib',
+'numpy',
+'scipy',
+'pillow',
+'cPickle'
+]
+```
 
 
 

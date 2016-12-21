@@ -1,7 +1,13 @@
+import os
 from PIL import Image
 import numpy as np
 import logging
 import logging.config
+
+from scipy import misc as misc
+
+from project2.model.utils import unprocess_image
+
 
 def load_img(path, greyscale=False, target_size=None):
     '''Load an image into PIL format.
@@ -274,3 +280,16 @@ if __name__ == "__main__":
     for idx, p in enumerate(signal):
         p.save('test/patchesimg/sig_{:04d}.tiff'.format(idx), 'TIFF')
 
+
+def save_image(image, save_dir, name, mean=None):
+    """
+    Save image by unprocessing if mean given else just save
+    :param mean:
+    :param image:
+    :param save_dir:
+    :param name:
+    :return:
+    """
+    if mean:
+        image = unprocess_image(image, mean)
+    misc.imsave(os.path.join(save_dir, name + ".png"), image)

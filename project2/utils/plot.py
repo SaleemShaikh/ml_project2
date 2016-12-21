@@ -1,7 +1,7 @@
 import logging
 
 from keras.utils.visualize_util import plot
-from model.cnn_v1 import leNet
+# from model.cnn_v1 import leNet
 from project2.utils.io_utils import get_plot_path_with_subdir
 
 

@@ -8,7 +8,7 @@ import re
 import glob
 
 from project2.utils.data_utils import img_to_array, load_img
-from project2.tf_fcn.utils import save_image
+from project2.utils.image_utils import save_image
 from project2.utils.data_utils import DirectoryImageLabelIterator, make_img_overlay, concatenate_patches
 import tensorflow as tf
 

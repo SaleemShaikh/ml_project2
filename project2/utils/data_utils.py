@@ -12,7 +12,7 @@ from PIL import Image
 import logging
 
 import keras.backend as K
-from keras.preprocessing.image import Iterator, ImageDataGenerator, DirectoryIterator
+from keras.preprocessing.image import Iterator, ImageDataGenerator
 
 from utils.image_utils import extractLabeledPatches, load_img
 

@@ -11,7 +11,7 @@ import os
 ##################################################################
 
 PROJECT_DIR = '/cvlabdata1/home/kyu/ml_project2'
-os.environ['CUDA_VISIBLE_DEVICES'] = '3'
+os.environ['CUDA_VISIBLE_DEVICES'] = '2,3'
 os.environ['KERAS_BACKEND'] = 'tensorflow'
 os.environ['KERAS_IMAGE_DIM_ORDERING'] = 'tf'
 
@@ -19,23 +19,23 @@ import datetime
 import tensorflow as tf
 
 from keras.preprocessing.image import ImageDataGenerator
-from project2.tf_fcn.fcn_vgg_v2 import fcn8s, fcn32s
-from project2.tf_fcn.utils import add_to_regularization_and_summary, add_gradient_summary, save_image
+from project2.model.fcn_vgg_v2 import fcn8s, fcn32s
+from project2.model.utils import add_to_regularization_and_summary, add_gradient_summary
 
 from project2.utils.data_utils import DirectoryImageLabelIterator
-from project2.utils.io_utils import get_dataset_dir
 
 # Specify which model to be trained.
 train_function = fcn8s
-MODEL_NAME = 'fcn8s_clean'
+
+MODEL_NAME = 'fcn4s_clean'
 PLOT_DIR = 'plot_finetune'
-MAX_ITERATION = int(50000 + 1)
-FINETUNE_NAME = ''
+MAX_ITERATION = int(5000 + 1)
+FINETUNE_NAME = 'small_stride_with_rotate'
 
 FLAGS = tf.flags.FLAGS
 
 # Specify train to train, finetune to finetune.
-tf.flags.DEFINE_string('mode', "train", "Mode train/ finetune")
+tf.flags.DEFINE_string('mode', "finetune", "Mode train/ finetune")
 
 if FLAGS.mode == 'finetune':
     FINETUNE_NAME = '_{}_{}'.format('finetune', str(MAX_ITERATION-1))
@@ -52,9 +52,9 @@ tf.flags.DEFINE_string("plot_dir", os.path.join(PROJECT_DIR, 'output', MODEL_NAM
 
 
 # Hyper parameters and mode setting
-tf.flags.DEFINE_integer("batch_size", "4", "batch size for training")
+tf.flags.DEFINE_integer("batch_size", "8", "batch size for training")
 tf.flags.DEFINE_float("learning_rate", "1e-4", "Learning rate for Adam Optimizer")
-tf.flags.DEFINE_bool('augmentation', 'False', 'Data runtime augmentation mode : True/ False')
+tf.flags.DEFINE_bool('augmentation', 'True', 'Data runtime augmentation mode : True/ False')
 tf.flags.DEFINE_bool('debug', "True", "Debug mode: True/ False")
 
 NUM_OF_CLASSESS = 2
@@ -132,6 +132,7 @@ def main(argv=None):
             logits, tf.squeeze(annotation, squeeze_dims=[3]), name='xentropy')
         )
     )
+
     val_loss = tf.reduce_mean(
         (tf.nn.sparse_softmax_cross_entropy_with_logits(
             # Use sqeeze because expand_dims first
@@ -178,7 +179,7 @@ def main(argv=None):
     elif FLAGS.mode == 'finetune':
         gen = None
         if FLAGS.augmentation:
-            train_itr = DirectoryImageLabelIterator(FLAGS.data_dir, gen, stride=(100, 100),
+            train_itr = DirectoryImageLabelIterator(FLAGS.data_dir, gen, stride=(50, 50),
                                                     dim_ordering='tf',
                                                     data_folder='training',
                                                     image_folder='images', label_folder='groundtruth',

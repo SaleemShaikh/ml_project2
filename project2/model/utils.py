@@ -1,14 +1,18 @@
+"""
+utils.py
 
+Provide utilities method for FCN model, and related operations
+"""
 
 # Utils used with tensorflow implemetation
-import tensorflow as tf
-import numpy as np
-import scipy.misc as misc
-import os, sys
-from six.moves import urllib
 import tarfile
 import zipfile
+
+import os
 import scipy.io
+import sys
+import tensorflow as tf
+from six.moves import urllib
 
 
 def get_model_data(dir_path, model_url):
@@ -42,20 +46,6 @@ def maybe_download_and_extract(dir_path, url_name, is_tarfile=False, is_zipfile=
             with zipfile.ZipFile(filepath) as zf:
                 zip_dir = zf.namelist()[0]
                 zf.extractall(dir_path)
-
-
-def save_image(image, save_dir, name, mean=None):
-    """
-    Save image by unprocessing if mean given else just save
-    :param mean:
-    :param image:
-    :param save_dir:
-    :param name:
-    :return:
-    """
-    if mean:
-        image = unprocess_image(image, mean)
-    misc.imsave(os.path.join(save_dir, name + ".png"), image)
 
 
 def get_variable(weights, name):

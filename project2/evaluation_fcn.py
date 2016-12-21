@@ -55,7 +55,7 @@ from scipy.misc import imresize
 
 # Import the FCN 4s and FCN 32s model. For different prediction
 from project2.model.fcn_vgg_v2 import fcn8s,fcn32s
-from project2.model.utils import save_image
+from project2.utils.image_utils import save_image
 from project2.utils.data_utils import DirectoryImageLabelIterator, make_img_overlay, \
     greyscale_to_rgb, concatenate_patches, array_to_img
 from project2.utils.mask_to_submission import pipeline_runtime_from_mask_to_submission

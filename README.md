@@ -3,7 +3,7 @@ Team KPJ, by Kaicheng Yu, Pierre Runavot, Jan Bednarik
 
 PRML Course project 2, EPFL
 
-Please open it and read README.md on Github for better experience.
+Please open and read README.md on Github for better experience.
 https://github.com/kcyu2014/ml_project2
 
 
@@ -25,9 +25,9 @@ Complete summary should be
 ```bash
 # (Optional) Create virtual environment.
 
-# Download from kpj_reproduce.zip from
+# Download kpj_reproduce.zip from
 # 'https://docs.google.com/uc?export=download&id=0B-YlxKup3Jzfd1JENXp6b0tGeVE'
-# Unzip and move data, model, tensorboard to path/tp/kpj
+# Unzip and move data, model, tensorboard to path/to/kpj
 
 cd path/to/kpj
 pip install tensorflow keras pillow matplotlib
@@ -51,8 +51,8 @@ path/to/download/
       tensorboard/
 ```
 Move or copy the folders to current working directory (a.k.a. the directory
-  contains this README.md)
-The complete directory of project should look like section Project structure
+  containing this README.md)
+The complete directory of project should look as descirbed in section 'Project structure'
 
 ### 2. Installing required libraries
 
@@ -91,7 +91,7 @@ pip install -U scikit-learn
 
 ### 3. Environment variable setting
 
-Finally, go to the project root folder (the directory contains this README.md
+Finally, go to the project root folder (the directory containing this README.md
   file) and execute
 
 ```bash
@@ -118,7 +118,7 @@ You should be able to see the results in no time, depending on the
 computational power :) Normally, for a Macbook Pro, it should take approximately
 5 minutes. On a 32-core CPU machine, it takes around 200 seconds.
 
-Generate result is inside ```output``` folder, with following structure
+Generated results are inside ```output``` folder, with the following structure
 
 ```
 path/to/kpj/
@@ -141,7 +141,7 @@ On a CUDA enable machine, the rough running time for fit one image is 0.5
 seconds, with batch size 4, 5,000 iterations take 10,000 seconds which is more
 than 2 hours.
 
-In order to train, there are two basic pipeline.
+In order to train, there are two basic pipelines.
 
 ### 1. Training on Original Dataset only
 If no pre-training, you could simply download the training data,
@@ -149,7 +149,7 @@ https://inclass.kaggle.com/c/epfml-segmentation/download/training.zip
 then extract them into ```path/to/project/data/```
 They should be in exactly the same name as project directory structure.
 
-Then, open the ```train_fcn.py``` and follows the instructions to set accordingly
+Then, open the ```train_fcn.py``` and follow the instructions to set accordingly
 
 A sample setting is
 ```python
@@ -172,10 +172,10 @@ original data.
 
 ### 2. Pre-train on generated dataset
 
-If you want to pre-train the model, please firstly go to download massachuttes
-dataset first, then follows section "Obtaining the generated dataset". It will
-results in 12,000 (400x400) sat images and label images under
-directory  ```data/massachuttes/```.
+If you want to pre-train the model, please firstly see the section 
+'Obtaining the generated dataset' to download the massachuttes
+dataset. It will result in 12,000 (400x400) sat images and label images 
+under directory  ```data/massachuttes/```.
 
 Then, alter the ```train_fcn.py``` ```MODE``` to ```'train'```.
 
@@ -190,12 +190,12 @@ under ```tensorboard``` folder. It could be further fine-tune.
 After obtaining pre-train model, we could specify a ```FINETUNE_NAME``` to obtain
 better results.
 
-Follows the step 1 like setting, please set the ```MODEL_NAME``` the same as
+Follow the step 1 like setting, please set the ```MODEL_NAME``` the same as
 step 2 and then give a ```FINETUNE_NAME```. Set the ```MODE``` to ```finetune```
 
 Then run the ```train_fcn.py``` again.
 
-To get better result, please turn the flag to ```True```
+To get better results, please turn the flag to ```True```
 ```
 tf.flags.DEFINE_bool('augmentation', 'True', 'Data runtime augmentation mode : True/ False')
 ```
@@ -238,22 +238,26 @@ path/to/project/
 
 ## Obtaining the generated dataset
 As explained in the report large amount of data were needed for training
-FCN. Therefore, in order to reproduce the training process (~28 hours on
- GPU GeForce GTX TITAN Z) you need to download the Massachusetts Road
- and Building Detection Dataset and preprocess it as described
- in following steps.
+FCN. Therefore, in order to reproduce the training process you need to download 
+the Massachusetts Road and Building Detection Dataset and preprocess it as 
+described in following steps.
 
 ### Obtaining the dataset
+
+Download all the files (both images and corresponding ground truth masks) and store
+them in two separate directories. The data can be obtained from following URIs:
+
 The aerial images: https://www.cs.toronto.edu/~vmnih/data/mass_roads/train/sat/index.html
 The ground truth masks: https://www.cs.toronto.edu/~vmnih/data/mass_roads/train/map/index.html
 
 ### Preprocessing
-Adjust variables *inputPath* and *outputPath* in INPUT PARAMETERS part
-of the script **utils/images2patches.py** so that the paths would
+Adjust variables ```inputPath``` and ```outputPath``` in ```INPUT PARAMETERS``` part
+of the script ```utils/images2patches.py``` so that the paths would
 correspond to your directory structure. All other parameters should be
 left as is (in order to compy with the description in the report). Then
-run the script, the resulting images will be stored in *outputPath*
+run the script, the resulting images will be stored in ```outputPath```.
 
 ### Directory structure
-Move the generated images into *data/massachusetts/sat/* and the
-generated masks into *data/massachusetts/label* directories.
+Move the generated files (both the images and the corresponding masks) 
+into ```data/massachusetts/sat/``` and the generated masks into 
+```data/massachusetts/label``` directories.

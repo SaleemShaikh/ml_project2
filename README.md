@@ -1,6 +1,11 @@
 # Project 2 Road Segmentation from satellite image
 Team KPJ, by Kaicheng Yu, Pierre Runavot, Jan Bednarik
+
 PRML Course project 2, EPFL
+
+Please open it and read README.md on Github for better experience.
+https://github.com/kcyu2014/ml_project2
+
 
 We present the approaches we used to tackle the task of road segmentation and
 the results we achieved. We utilize the well known computer vision methods,
@@ -103,7 +108,7 @@ python project2/run.py
 ## HOWTO run and interpret results
 
 
-Run the
+Run the following in terminal
 ```bash
 cd /path/to/kpj/  # path you extracted from kpj_submission.zip
 python project2/run.py
@@ -114,6 +119,21 @@ computational power :) Normally, for a Macbook Pro, it should take approximately
 5 minutes. On a 32-core CPU machine, it takes around 200 seconds.
 
 Generate result is inside ```output``` folder, with following structure
+
+```
+path/to/kpj/
+    output/
+        MODEL_NAME_xxx.csv      # File in Kaggle format
+        MODEL_NAME_xxx/         # Folder of image results.
+            complete_image/
+                image files with results
+
+            ...
+            prob_id.png         # Images of probabilities being road.
+            ...
+
+```
+
 
 ## HOWTO train FCN model
 

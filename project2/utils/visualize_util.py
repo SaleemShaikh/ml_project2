@@ -63,62 +63,44 @@ def get_cmap(N):
     return map_index_to_rgb_color
 
 
-def plot_multiple_train_test(train_errors, test_errors, modelnames, x_factor=None, show=False,
+def plot_multiple_train_test(train_errors, test_errors, modelnames, show=False, title='',
                              xlabel='', ylabel='', filename='', linestyle=('dotted', '-'),
-                             significant=None, sig_color=None,
                              xlim=[0, 200], ylim=[0.01, 0.5]):
     assert len(train_errors) == len(test_errors) == len(modelnames)
-    if x_factor is None:
-        x_factor = range(len(train_errors))
-    cmap = get_cmap(len(train_errors) + 1)
-    if significant is not None:
-        assert len(significant) == len(sig_color)
-        tr_err = []
-        te_err = []
-        model_n = []
-        sig_tr = []
-        sig_te = []
-        sig_model = []
-        for i in range(len(train_errors)):
-            if i in significant:
-                sig_tr.append(train_errors[i])
-                sig_te.append(test_errors[i])
-                sig_model.append(modelnames[i])
-            else:
-                tr_err.append(train_errors[i])
-                te_err.append(test_errors[i])
-                model_n.append(modelnames[i])
-        cmap = get_cmap(len(tr_err))
-    else:
-        tr_err = train_errors
-        te_err = test_errors
 
-    for i in range(len(tr_err)):
+    x_factor = range(len(train_errors[0]))
+    cmap = get_cmap(len(train_errors) + 1)
+
+    numModels = len(train_errors)
+
+    plt.figure(figsize=(5, 5))
+    # plt.gcf().subplots_adjust(bottom=0.3)
+
+    for i in range(numModels):
         col = cmap(i)
-        plt.plot(range(len(tr_err[i])), tr_err[i], color=col, linestyle=linestyle[0])
-        plt.plot(range(len(te_err[i])), te_err[i], color=col, linestyle=linestyle[1], label=modelnames[i])
-    if significant is not None:
-        for i in range(len(sig_tr)):
-            plt.plot(range(len(sig_tr[i])), sig_tr[i], color=sig_color[i], linestyle=linestyle[0],
-                     linewidth=3)
-            plt.plot(range(len(sig_te[i])), sig_te[i], color=sig_color[i], linestyle=linestyle[1],
-                     label=sig_model[i], linewidth=3)
+        plt.plot(range(len(train_errors[i])), train_errors[i], color=col, linestyle=linestyle[0], linewidth=2.0, label=modelnames[i])
+        plt.plot(range(len(test_errors[i])), test_errors[i], color=col, linestyle=linestyle[1])
+
     axes = plt.gca()
     axes.set_ylim(ylim)
     axes.set_xlim(xlim)
-    leg = plt.legend(loc=1, shadow=True)
-    leg.draw_frame(False)
+
+    leg = plt.legend(loc=4, frameon=True)
+
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
-    plt.title(filename)
+    plt.title(title)
+
     ltext = leg.get_texts()
-    plt.setp(ltext, fontsize='xx-small')
+    plt.setp(ltext, fontsize='medium')
 
     if show:
         plt.show()
+
     plt_path = get_plot_path("train_test " + filename)
-    plt.savefig(plt_path)
+    plt.savefig(plt_path, dpi=400)
     plt.close()
+
     return plt_path
 
 

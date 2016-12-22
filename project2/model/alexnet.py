@@ -1,7 +1,7 @@
 """ This module implements the variants of original AlexNet described in paper Alex Krizhevsky - ImageNet Classification
 with Deep Convolutional Neural Networks.
 
-The original implementation is taken from https://github.com/heuritech/convnets-keras and it is adjusted for needs
+The implementation is based on https://github.com/heuritech/convnets-keras and it is adjusted for needs
 of project 2 - PCML 2016.
 """
 
@@ -37,17 +37,6 @@ def crosschannelnormalization(alpha=1e-4, k=2, beta=0.75, n=5, **kwargs):
 def splittensor(axis=1, ratio_split=1, id_split=0,**kwargs):
     """ Splits the tensor into two consecutive parts given `ratio_split`. Implementation
     taken from https://github.com/heuritech/convnets-keras/blob/master/convnetskeras/customlayers.py.
-
-    Parameters
-    ----------
-    axis
-    ratio_split
-    id_split
-    kwargs
-
-    Returns
-    -------
-
     """
     def f(X):
         div = X.shape[axis] // ratio_split

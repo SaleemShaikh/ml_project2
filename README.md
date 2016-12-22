@@ -13,7 +13,7 @@ Unzip the file and put
 
 ### 2. Installing required libraries
 
-To only reproduce the best submission csv file and corresponding prediction images, you only need to install the following libraries and python2.7 interpreter. It is strongly recommended that you create a virtual environment to install these libraries so that you could easily delete them afterwards.
+To only reproduce the best submission csv file and corresponding prediction images, you only need to install the following libraries and python 2.7 interpreter. It is strongly recommended to create a virtual environment to install these libraries so that you could easily delete them afterwards. 
 
 * Keras
 ```pip install keras```
@@ -25,17 +25,14 @@ To only reproduce the best submission csv file and corresponding prediction imag
 'numpy',
 'scipy',
 'pillow',
-'cPickle'
 ```
 
 In order to run all of the other models described in the documentation, following libraries are needed:
 
-* Theano
+* Theano (if not already installed with Keras)
 ```pip install theano```
 * scikit-learn
 ```pip install -U scikit-learn```
-
-
 
 
 
@@ -73,14 +70,14 @@ path/to/project/
 ```
 
 ## Obtaining the dataset
-As explained in the report large amount of data were needed for training FCN. Therefore, in order to reproduce the training process (~16 hours on GPU GeForce GTX TITAN Z) you need to download the Massachusetts Road and Building Detection Dataset and preprocess it as described in following steps.
+As explained in the report large amount of data were needed for training FCN. Therefore, in order to reproduce the training process (~28 hours on GPU GeForce GTX TITAN Z) you need to download the Massachusetts Road and Building Detection Dataset and preprocess it as described in following steps.
 
 ### Obtaining the dataset
 The aerial images: https://www.cs.toronto.edu/~vmnih/data/mass_roads/train/sat/index.html
 The ground truth masks: https://www.cs.toronto.edu/~vmnih/data/mass_roads/train/map/index.html
 
 ### Preprocessing
-Adjust variables *inputPath* and *outputPath* in INPUT PARAMETERS part of the script **utils/images2patches.py** so that the paths would correspond to your directory structure. All other parameters should be left as is (in order to compy with the description in the report). Then run the script.
+Adjust variables *inputPath* and *outputPath* in INPUT PARAMETERS part of the script **utils/images2patches.py** so that the paths would correspond to your directory structure. All other parameters should be left as is (in order to compy with the description in the report). Then run the script, the resulting images will be stored in *outputPath*
 
 ### Directory structure
 Move the generated images into *data/massachusetts/sat/* and the generated masks into *data/massachusetts/label* directories.

@@ -15,6 +15,22 @@ accuracy respectively on the originally provided test dataset.
 In order to run the ```run.py```, please make sure you have successfully
 installed all the required libraries and set the corresponding paths correctly.
 There should be at least 4 GB free space on your machine.
+
+Complete summary should be
+```bash
+# (Optional) Create virtual environment.
+
+# Download from kpj_reproduce.zip from
+# 'https://docs.google.com/uc?export=download&id=0B-YlxKup3Jzfd1JENXp6b0tGeVE'
+# Unzip and move data, model, tensorboard to path/tp/kpj
+
+cd path/to/kpj
+pip install tensorflow keras pillow matplotlib
+python setup.py
+python project2/run.py
+```
+
+
 ### 1. Download required files
 Since our best model is trained in TensorFlow, you will need the obtain complete
 saved weights to get the evaluation results. You could get the trained weights
@@ -41,11 +57,11 @@ interpreter. It is strongly recommended to create a virtual environment to
 install these libraries so that you could easily delete them afterwards.
 
 * Keras
-```
+```bash
 pip install keras
 ```
 * tensorflow
-```
+```bash
 pip install tensorflow
 ```
 * Other python packages, you could also use pip install.
@@ -60,11 +76,11 @@ pip install tensorflow
 In order to run all of the other models described in the documentation, following libraries are needed:
 
 * Theano (if not already installed with Keras)
-```
+```bash
 pip install theano
 ```
 * scikit-learn
-```
+```bash
 pip install -U scikit-learn
 ```
 

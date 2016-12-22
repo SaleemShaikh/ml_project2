@@ -20,6 +20,12 @@ os.environ['CUDA_VISIBLE_DEVICES'] = '2,3'
 os.environ['KERAS_BACKEND'] = 'tensorflow'
 os.environ['KERAS_IMAGE_DIM_ORDERING'] = 'tf'
 
+# Model name, plot directory, iterations and fine-tune name
+MODEL_NAME = 'fcn8s_test_train'
+PLOT_DIR = 'plot_test'
+MAX_ITERATION = int(5000 + 1)
+MODE = 'finetune'
+FINETUNE_NAME = 'test_finetune'
 #######################################################################################################################
 # End of settings
 #######################################################################################################################
@@ -41,17 +47,11 @@ from project2.utils.data_utils import DirectoryImageLabelIterator
 # Specify which model to be trained. either fcn8s
 train_function = fcn8s  # or fcn32s
 
-# Model name, plot directory, iterations and fine-tune name
-MODEL_NAME = 'fcn4s_clean'
-PLOT_DIR = 'plot_finetune'
-MAX_ITERATION = int(5000 + 1)
-FINETUNE_NAME = 'small_stride_with_rotate'
-
-
+# Create TensorFlow FLAGS to pass as run-time arguments
 FLAGS = tf.flags.FLAGS
 
 # Specify train to train, finetune to finetune.
-tf.flags.DEFINE_string('mode', "finetune", "Mode train/ finetune")
+tf.flags.DEFINE_string('mode', MODE, "Mode train/ finetune")
 
 if FLAGS.mode == 'finetune':
     FINETUNE_NAME = '_{}_{}'.format(FINETUNE_NAME, str(MAX_ITERATION-1))
@@ -68,9 +68,9 @@ tf.flags.DEFINE_string("plot_dir", os.path.join(PROJECT_DIR, 'output', MODEL_NAM
 
 
 # Hyper parameters and mode setting
-tf.flags.DEFINE_integer("batch_size", "8", "batch size for training")
+tf.flags.DEFINE_integer("batch_size", "4", "batch size for training")
 tf.flags.DEFINE_float("learning_rate", "1e-4", "Learning rate for Adam Optimizer")
-tf.flags.DEFINE_bool('augmentation', 'True', 'Data runtime augmentation mode : True/ False')
+tf.flags.DEFINE_bool('augmentation', 'False', 'Data runtime augmentation mode : True/ False')
 tf.flags.DEFINE_bool('debug', "True", "Debug mode: True/ False")
 
 NUM_OF_CLASSES = 2

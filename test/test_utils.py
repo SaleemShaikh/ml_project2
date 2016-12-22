@@ -2,7 +2,7 @@ import pytest
 import keras
 from keras.preprocessing.image import ImageDataGenerator
 from project2.utils.data_utils import RoadImageIterator, DirectoryImageLabelIterator, \
-    concatenate_images, make_img_overlay, array_to_img, img_to_array, concatenate_patches
+    concatenate_images, make_img_overlay, array_to_img, img_to_array, concatenate_patches, concatenate_overlap_patches
 from project2.utils.io_utils import *
 
 import numpy as np
@@ -140,7 +140,52 @@ def test_rotation_DirectoryImageLabelGenerator():
     res.save(path + '/result2.png')
     result.save(path + '/result.png')
 
+
+
+def test_rotation_DirectoryImageLabelGenerator_new():
+    dir = get_road_image_dir()
+    gen = None
+    path = get_plot_path('img_patch', 'dataset')
+    original_size = (400,400)
+    stride = (100,100)
+    index_lim = (3,3)
+    ratio = 1./ 2
+    itr = DirectoryImageLabelIterator(dir, gen, batch_size=9,
+                                      dim_ordering='tf',
+                                      image_only=False,
+                                      rescale=False,
+                                      data_folder='training',
+                                      image_folder='images', label_folder='groundtruth',
+                                      ratio=ratio,
+                                      shuffle=False,
+                                      rotation='fine',
+                                      original_img_size=original_size,
+                                      target_size=(200, 200), stride=(100,100),
+                                      save_to_dir=path, save_prefix='test_rotation')
+
+    # Overlay the image
+    batch_x, batch_y = itr.next()
+    # result_image = np.zeros(shape=(400, 400, 3))
+    # result_label = np.zeros(shape=(400, 400, 1))
+    # for i in range(index_lim):
+    #     for j in range(index_lim):
+    #         result_image[img_w * i:img_w * (i + 1), img_w * j:img_w * (j + 1), :] = batch_x[index_lim * j + i]
+    #         result_label[img_w * i:img_w * (i + 1), img_w * j:img_w * (j + 1), :] = batch_y[index_lim * j + i]
+    # result_image = img_to_array(result_image, 'tf')
+    # result_label = img_to_array(result_label, 'tf')
+    # result_label = np.squeeze(result_label)
+    # result = make_img_overlay(result_image, result_label)
+    # # result.save(path + '/result.png')
+
+    res_img, res_lab = concatenate_overlap_patches((batch_x, batch_y), index_lim, target_size=original_size)
+    res_lab = np.squeeze(res_lab)
+    res = make_img_overlay(res_img[0], res_lab[0])
+    res.save(path + '/result2.png')
+
+    # result.save(path + '/result.png')
+
 if __name__ == '__main__':
     # pytest.main([__file__])
     # test_ratio_DirectoryImageLabelGenerator()
-    test_rotation_DirectoryImageLabelGenerator()
+    # test_rotation_DirectoryImageLabelGenerator()
+    test_rotation_DirectoryImageLabelGenerator_new()

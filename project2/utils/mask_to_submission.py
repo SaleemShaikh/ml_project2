@@ -7,7 +7,7 @@ import matplotlib.image as mpimg
 import re
 import glob
 
-from project2.utils.data_utils import img_to_array, load_img
+from project2.utils.data_utils import img_to_array, load_img, concatenate_overlap_patches
 from project2.utils.image_utils import save_image
 from project2.utils.data_utils import DirectoryImageLabelIterator, make_img_overlay, concatenate_patches
 import tensorflow as tf
@@ -191,7 +191,7 @@ def pipeline_from_masks_to_submission(model, title, proj_path, regenerate=False,
 
 
 def pipeline_runtime_from_mask_to_submission(model, title, output_path, input_imgs, pred_imgs,
-                                             nb_patch_per_image, index_lim,
+                                             nb_patch_per_image, index_lim, target_size=(600,600),
                                              save_normalized=False, save_overlay=True):
     """
     Generate runtime submission files and related image inputs. Directly from evaluation_fcn.py
@@ -222,8 +222,9 @@ def pipeline_runtime_from_mask_to_submission(model, title, output_path, input_im
     tf.gfile.MakeDirs(save_path)
 
     # Concatenate images
-    image_list, pred_list = concatenate_patches((input_imgs, pred_imgs), index_lim, dim_ordering='tf',
-                                                nb_patch_per_image=nb_patch_per_image)
+    # image_list, pred_list = concatenate_patches((input_imgs, pred_imgs), index_lim, dim_ordering='tf',
+    #                                             nb_patch_per_image=nb_patch_per_image)
+    image_list, pred_list = concatenate_overlap_patches((input_imgs, pred_imgs), index_lim, target_size=target_size)
 
     # Save the concatenated images with normalization, overlay option
     create_concat_test_from_images(pred_list, image_list, save_path, save_normalized, save_overlay)

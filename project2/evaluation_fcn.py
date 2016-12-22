@@ -31,11 +31,11 @@ With GPU, the running time is around 60 seconds, from loading weights and genera
 
 import os
 
-# PROJECT_DIR, _ = os.path.split(os.getcwd())
-PROJECT_DIR = '/cvlabdata1/home/kyu/ml_project2'
+PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# PROJECT_DIR = '/cvlabdata1/home/kyu/ml_project2'
 
 # Cuda visiable device mask for CUDA enabled GPU
-os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+os.environ['CUDA_VISIBLE_DEVICES'] = '0,1'
 
 #######################################################################################################################
 # End of run time variable settings
@@ -43,6 +43,7 @@ os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 
 # learning platform
 os.environ['KERAS_BACKEND'] = 'tensorflow'
+
 import tensorflow as tf
 try:
     import keras.backend as K
@@ -56,10 +57,10 @@ import numpy as np
 from scipy.misc import imresize
 
 # project files
-from project2.model.fcn_vgg_v2 import fcn8s,fcn32s
+from project2.model.fcn_vgg_v2 import fcn8s, fcn32s
 from project2.utils.image_utils import save_image
 from project2.utils.data_utils import DirectoryImageLabelIterator, make_img_overlay, \
-    greyscale_to_rgb, concatenate_patches, array_to_img
+    greyscale_to_rgb, concatenate_patches, array_to_img, concatenate_overlap_patches
 from project2.utils.mask_to_submission import pipeline_runtime_from_mask_to_submission
 
 
@@ -67,13 +68,10 @@ from project2.utils.mask_to_submission import pipeline_runtime_from_mask_to_subm
 FLAGS = tf.flags.FLAGS
 
 # Evaluation directory, settings and hyper-parameters
-# MODEL_NAME = 'fcn8s_best_model'
-# MODEL_NAME = 'clean_fcns_finetune_5000_with_rotate'
-MODEL_NAME = 'fcn4s_clean_finetune_5000'
-# MODEL_NAME = 'fcn4s_finetune_5000_newdata'
-PLOT_DIR = 'plot_finetune_newest'
+MODEL_NAME = 'fcn8s_best_model'
+PLOT_DIR = 'plot_dense_stride_100'
 ITER = '4000'
-index_lim = 3
+
 
 # Relative path setting
 tf.flags.DEFINE_string("fcn_dir", os.path.join(PROJECT_DIR, 'tensorboard', MODEL_NAME), "Path to FCN model")
@@ -81,16 +79,21 @@ tf.flags.DEFINE_string('output_dir', os.path.join(PROJECT_DIR, 'output'), 'outpu
 tf.flags.DEFINE_string("data_dir", os.path.join(PROJECT_DIR, 'data'), 'path to data directory')
 tf.flags.DEFINE_string("model_dir", os.path.join(PROJECT_DIR, 'model'), "Path to vgg model mat")
 tf.flags.DEFINE_string("plot_dir", os.path.join(PROJECT_DIR, 'output', MODEL_NAME, PLOT_DIR + '_' + ITER), "path to plots")
-tf.flags.DEFINE_integer("batch_size", "9", "batch size for visualization")
+tf.flags.DEFINE_integer("batch_size", "10", "batch size for visualization")
 tf.flags.DEFINE_bool('debug', "False", "Debug mode: True/ False")
 tf.flags.DEFINE_string('mode', "predict", "Mode predict/ test/ visualize")
 
 # Initialize the model
 eval_function = fcn8s
 NUM_OF_CLASSESS = 2
-IMAGE_SIZE = 400
 INPUT_SIZE = 224
 
+IMAGE_SIZE = 600
+PATCH_SIZE = 200
+STRIDE = 100
+RATIO = float(PATCH_SIZE) / IMAGE_SIZE
+index_lim = (IMAGE_SIZE - PATCH_SIZE) / STRIDE + 1
+INDEX_LIM = (index_lim, index_lim)
 
 def main(argv=None):
     """
@@ -138,15 +141,16 @@ def main(argv=None):
                                                 )
     elif FLAGS.mode == 'predict':
 
-        valid_itr = DirectoryImageLabelIterator(FLAGS.data_dir, None, stride=(600/index_lim, 600/index_lim),
+        valid_itr = DirectoryImageLabelIterator(FLAGS.data_dir, None,
                                                 dim_ordering='tf',
                                                 image_only=True,
                                                 data_folder='test_set_images',
                                                 image_folder='test_sat',
                                                 batch_size=FLAGS.batch_size,
+                                                stride=(STRIDE, STRIDE),
                                                 target_size=(INPUT_SIZE, INPUT_SIZE),
-                                                ratio=1./index_lim,
-                                                original_img_size=(600,600),
+                                                ratio=RATIO,
+                                                original_img_size=(IMAGE_SIZE, IMAGE_SIZE),
                                                 shuffle=False,
                                                 rescale=False
                                                 )
@@ -233,7 +237,7 @@ def main(argv=None):
                 # Get probability map and append
                 prob_road_raw = prob_road[itr]
                 # Resize and normalize the probability
-                prob_road_resize = imresize(prob_road_raw, (600/index_lim, 600/index_lim))
+                prob_road_resize = imresize(prob_road_raw, (int(IMAGE_SIZE * RATIO), int(IMAGE_SIZE * RATIO)))
                 prob_road_resize = prob_road_resize.astype(np.float32) / 255
                 prob_array_list.append(prob_road_resize)
 
@@ -242,9 +246,9 @@ def main(argv=None):
                 # Convert raw prediction file into RGB
                 pred_img_rgb = greyscale_to_rgb(pred_img, pixel_depth=1)
                 # Append all the image with resize
-                input_list.append(imresize(img, (600/index_lim, 600/index_lim)))
-                result_list.append(imresize(pred_img_rgb, (600/index_lim, 600/index_lim)))
-                prob_img_list.append(imresize(prob_road_rgb, (600/index_lim, 600/index_lim)))
+                input_list.append(imresize(img, (int(IMAGE_SIZE * RATIO), int(IMAGE_SIZE * RATIO))))
+                result_list.append(imresize(pred_img_rgb, (int(IMAGE_SIZE * RATIO), int(IMAGE_SIZE * RATIO))))
+                prob_img_list.append(imresize(prob_road_rgb, (int(IMAGE_SIZE * RATIO), int(IMAGE_SIZE * RATIO))))
 
                 if FLAGS.debug:
                     # Output preliminary results
@@ -265,12 +269,15 @@ def main(argv=None):
         pipeline_runtime_from_mask_to_submission(MODEL_NAME, PLOT_DIR + '_' + ITER, FLAGS.output_dir,
                                                  input_list, result_list,
                                                  index_lim * index_lim,
-                                                 (index_lim, index_lim),
+                                                 INDEX_LIM,
                                                  save_normalized=True, save_overlay=True)
 
         # Concatenate the probability raw into shape as the complete original image
-        prob_concat_array = concatenate_patches((prob_array_list,), (index_lim, index_lim),
-                                                nb_patch_per_image=index_lim*index_lim)
+        prob_concat_array = concatenate_overlap_patches((prob_array_list,), INDEX_LIM,
+                                                        target_size=(IMAGE_SIZE, IMAGE_SIZE))
+
+        # prob_concat_array = concatenate_patches((prob_array_list,), (index_lim, index_lim),
+        #                                                 nb_patch_per_image=index_lim*index_lim)
 
         prob_concat = np.asanyarray(prob_concat_array[0], dtype=np.float32)
         np.save(os.path.join(FLAGS.output_dir, MODEL_NAME, 'probability_{}_{}.gz'.format(MODEL_NAME, ITER)), prob_concat,

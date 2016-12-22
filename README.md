@@ -9,7 +9,7 @@ installed all the required libraries and set the corresponding paths correctly.
 ### 1. Saved weights and meta data
 Since our best model is trained in TensorFlow, you will need the obtain complete saved weights to get the evaluation results. You could get the trained weights and related testing files through the link
 
-Unzip the file and put
+Unzip the file, you will get xxx
 
 ### 2. Installing required libraries
 
@@ -39,9 +39,22 @@ In order to run all of the other models described in the documentation, followin
 
 
 
-### Environment vairable setting
+### 3. Environment vairable setting
 
+Finally, go to the project root folder (the directory contains this README.md file) and
+execute
+```bash
+python setup.py
+```
 
+Then, run the
+```bash
+python project2/run.py
+```
+
+You should be able to see the results in no time, depending on the computational power :)
+Normally, for a Macbook Pro, it should take approximately
+On a 32-core CPU machine, it takes around 120 seconds.
 
 ## Project directory structure
 Please download the run-time 

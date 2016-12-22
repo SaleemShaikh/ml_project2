@@ -189,6 +189,79 @@ def make_img_overlay(img, predicted_img, pixel_depth=255):
     return new_img
 
 
+def concatenate_overlap_patches(batches, index_lim, target_size, dim_ordering='tf'):
+    """
+    Concatenate overlapping patches into a single prediction.
+
+    Parameters
+    ----------
+    batches
+    index_lim
+    target_size
+    dim_ordering
+
+    Returns
+    -------
+
+    """
+    result_list = []
+    if isinstance(index_lim, int):
+        index_lim = (index_lim,index_lim)
+    if len(index_lim) != 2:
+        raise ValueError('Only accept (x,y) index lim')
+
+    for batch in batches:
+        if isinstance(batch, list):
+            b_shape = (len(batch),) + batch[0].shape
+        else:
+            b_shape = batch.shape
+        nb_patch = b_shape[0]
+        nb_patch_per_image = index_lim[0] * index_lim[1]
+
+        # Patch info
+        patch_size = (b_shape[1], b_shape[2])
+        stride = ((target_size[0] - patch_size[0]) / (index_lim[0] - 1),
+                  (target_size[1] - patch_size[1]) / (index_lim[1] - 1))
+        patch_dummy = np.zeros(shape=patch_size + (1,)) + 1
+
+        if nb_patch % nb_patch_per_image != 0:
+            raise ValueError("Make sure patches are complete")
+        _result_list = []
+        for index in range(nb_patch / nb_patch_per_image):
+            _batches = batch[index * nb_patch_per_image : nb_patch_per_image * (index + 1)]
+
+            if dim_ordering == 'tf':
+                if len(b_shape) == 4:  # RGB
+                    result = np.zeros(shape=(target_size[0], target_size[1], b_shape[3]))
+                    weights = np.zeros(shape=(target_size[0], target_size[1], b_shape[3]))
+                else:  # Greyscale
+                    result = np.zeros(shape=(target_size[0], target_size[1], 1))
+                    weights = np.zeros(shape=(target_size[0], target_size[1], 1))
+                    _batches = np.expand_dims(_batches, axis=-1)
+            else:
+                raise NotImplementedError
+
+            for i in range(index_lim[0]):
+                for j in range(index_lim[1]):
+                    result[
+                        stride[0] * i: stride[0] * i + patch_size[0],
+                        stride[1] * j: stride[1] * j + patch_size[1],
+                        :
+                    ] += _batches[index_lim[1] * j + i]
+                    weights[
+                        stride[0] * i: stride[0] * i + patch_size[0],
+                        stride[1] * j: stride[1] * j + patch_size[1],
+                        :
+                    ] += patch_dummy
+            result /= weights
+            if result.dtype == np.uint8:
+                result = img_to_array(result, 'tf')
+            _result_list.append(result)
+        result_list.append(_result_list)
+
+    return result_list
+
+
 def concatenate_patches(batches, index_lim, dim_ordering='tf', nb_patch_per_image=1):
     """
     To use this concatenate function, make sure the following requirements:

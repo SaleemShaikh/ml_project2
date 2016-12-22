@@ -1,18 +1,3 @@
-# from setuptools import setup
-# from setuptools import find_packages
-#
-# setup(name='ML_project2',
-#       version='1.0',
-#       description='Project 2: Road segmentation PRML',
-#       author='Kaicheng Yu, Jan Band',
-#       install_requires=['numpy', 'scipy', 'pillow', 'keras'],
-#       extras_require={
-#           'cnn_train': ['theano'],
-#           'traditional': ['sklearn']
-#       },
-#       packages=['project2'])
-
-
 import os
 import sys
 
@@ -38,4 +23,5 @@ package_requires = ['tensorflow', # numpy, six will be installed
                     'pillow',
                     'matplotlib'
                     ]
+
 print("Please install the following packages with \"pip install\" {}".format(package_requires))

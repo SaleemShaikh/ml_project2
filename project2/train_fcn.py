@@ -2,35 +2,51 @@
 FCN Training flow.
 
 To train the model successfully, it is important to make sure the corresponding path to,
-data set, hyper-parameters, are well defined
+data set, hyper-parameters, are well defined.
+
+If there is no GPU available on your machine, it is strongly suggest you install CUDA library
+in order to avoid potential tensorflow failure.
+
+
 """
+
+#######################################################################################################################
+# Runtime path TO BE SET before run
+#######################################################################################################################
+
 import os
-
-##################################################################
-#          Runtime path TO BE SET before run                     #
-##################################################################
-
-PROJECT_DIR = '/cvlabdata1/home/kyu/ml_project2'
+PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.environ['CUDA_VISIBLE_DEVICES'] = '2,3'
 os.environ['KERAS_BACKEND'] = 'tensorflow'
 os.environ['KERAS_IMAGE_DIM_ORDERING'] = 'tf'
 
-import datetime
-import tensorflow as tf
+#######################################################################################################################
+# End of settings
+#######################################################################################################################
 
+
+# Learning platform
+import tensorflow as tf
 from keras.preprocessing.image import ImageDataGenerator
+
+# python
+import datetime
+
+# project files
 from project2.model.fcn_vgg_v2 import fcn8s, fcn32s
 from project2.model.utils import add_to_regularization_and_summary, add_gradient_summary
 
 from project2.utils.data_utils import DirectoryImageLabelIterator
 
-# Specify which model to be trained.
-train_function = fcn8s
+# Specify which model to be trained. either fcn8s
+train_function = fcn8s  # or fcn32s
 
+# Model name, plot directory, iterations and fine-tune name
 MODEL_NAME = 'fcn4s_clean'
 PLOT_DIR = 'plot_finetune'
 MAX_ITERATION = int(5000 + 1)
 FINETUNE_NAME = 'small_stride_with_rotate'
+
 
 FLAGS = tf.flags.FLAGS
 
@@ -38,7 +54,7 @@ FLAGS = tf.flags.FLAGS
 tf.flags.DEFINE_string('mode', "finetune", "Mode train/ finetune")
 
 if FLAGS.mode == 'finetune':
-    FINETUNE_NAME = '_{}_{}'.format('finetune', str(MAX_ITERATION-1))
+    FINETUNE_NAME = '_{}_{}'.format(FINETUNE_NAME, str(MAX_ITERATION-1))
 
 # Directory related settings
 tf.flags.DEFINE_string("data_dir", os.path.join(PROJECT_DIR, 'data'), 'path to data directory')
@@ -57,7 +73,7 @@ tf.flags.DEFINE_float("learning_rate", "1e-4", "Learning rate for Adam Optimizer
 tf.flags.DEFINE_bool('augmentation', 'True', 'Data runtime augmentation mode : True/ False')
 tf.flags.DEFINE_bool('debug', "True", "Debug mode: True/ False")
 
-NUM_OF_CLASSESS = 2
+NUM_OF_CLASSES = 2
 IMAGE_SIZE = 400
 INPUT_SIZE = 224
 
@@ -147,12 +163,14 @@ def main(argv=None):
         tf.image_summary('pred_annotation', tf.cast(tf.abs(tf.mul(pred_annotation, 128)), tf.uint8), max_images=2)
     tf.scalar_summary('loss', loss)
 
+    # Collect training variables and monitoring
     trainable_var = tf.trainable_variables()
     if FLAGS.debug:
         for var in trainable_var:
             # Monitor the regularization and summary
             add_to_regularization_and_summary(var)
 
+    # Make train function
     train_op = train(loss, trainable_var)
 
     print("setting up summary op ...")
@@ -223,6 +241,8 @@ def main(argv=None):
                                                 save_format='png',
                                                 save_to_dir=FLAGS.plot_dir
                                                 )
+    else:
+        raise ValueError("Cannot recognize the mode {}".format(FLAGS.mode))
 
     valid_itr = DirectoryImageLabelIterator(FLAGS.data_dir, None, stride=(200, 200),
                                             dim_ordering='tf',
@@ -309,6 +329,15 @@ def main(argv=None):
         except KeyboardInterrupt:
             print("Stop finetune and save the model")
             saver.save(sess, FLAGS.logs_dir + "model.ckpt", itr)
+
+
+def execute():
+    """
+    API to be called by other python file
+
+    """
+    tf.app.run(main)
+
 
 if __name__ == '__main__':
     tf.app.run()

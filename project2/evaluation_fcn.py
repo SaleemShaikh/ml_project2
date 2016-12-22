@@ -14,46 +14,48 @@ In order to produce the exact result, you should also download the corresponding
 them in 'fcn_dir'
 
 It is always better if you have a powerful GPU and you could speficify the device number in "CUDA_VISIBLE_DEVICES"
-And it takes approximately 90s to generate the corresponding submission file and related prediction images on a machine with
-using one nVIDIA Titan Z GPU
+And it takes approximately 90s to generate the corresponding submission file and related prediction images on a machine
+with using one nVIDIA Titan Z GPU
 
-Approximately, running time on a MacBook Pro is XXX.
-With GPU, the running time is around 120 seconds, from loading weights and generate the prediction csv.
+Approximately, running time on a MacBook Pro is around 5 min, on a powerful 22 core server, 90 seconds.
+With GPU, the running time is around 60 seconds, from loading weights and generate the prediction csv.
+
 """
 
-import os
-
-##################################################################
-#          Runtime path TO BE SET before run                     #
-##################################################################
+#######################################################################################################################
+# Runtime path TO BE SET before run
+#######################################################################################################################
 
 # Set to be the root folder of project 2 package. Please refer
 # details to READ.ME.
+
+import os
+
+# PROJECT_DIR, _ = os.path.split(os.getcwd())
 PROJECT_DIR = '/cvlabdata1/home/kyu/ml_project2'
 
 # Cuda visiable device mask for CUDA enabled GPU
 os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 
+#######################################################################################################################
+# End of run time variable settings
+#######################################################################################################################
 
-##################################################################
-#           End of run time variable settings                    #
-##################################################################
-
-
+# learning platform
 os.environ['KERAS_BACKEND'] = 'tensorflow'
+import tensorflow as tf
 try:
     import keras.backend as K
     K.set_image_dim_ordering('tf')
 except:
-    raise ImportError("Please install keras with pip install keras, or follow the"
+    raise ImportError("Please install keras with pip install keras, or follow the "
                       "guideline from http://keras.io")
 
-import datetime
+# python
 import numpy as np
-import tensorflow as tf
 from scipy.misc import imresize
 
-# Import the FCN 4s and FCN 32s model. For different prediction
+# project files
 from project2.model.fcn_vgg_v2 import fcn8s,fcn32s
 from project2.utils.image_utils import save_image
 from project2.utils.data_utils import DirectoryImageLabelIterator, make_img_overlay, \
@@ -65,20 +67,20 @@ from project2.utils.mask_to_submission import pipeline_runtime_from_mask_to_subm
 FLAGS = tf.flags.FLAGS
 
 # Evaluation directory, settings and hyper-parameters
-MODLE_NAME = 'fcn8s_best_model'
+# MODEL_NAME = 'fcn8s_best_model'
 # MODEL_NAME = 'clean_fcns_finetune_5000_with_rotate'
-# MODEL_NAME = 'fcn4s_finetune_5000'
+MODEL_NAME = 'fcn4s_clean_finetune_5000'
 # MODEL_NAME = 'fcn4s_finetune_5000_newdata'
-PLOT_DIR = 'plot_finetune_new'
+PLOT_DIR = 'plot_finetune_newest'
 ITER = '4000'
 index_lim = 3
 
 # Relative path setting
-tf.flags.DEFINE_string("fcn_dir", os.path.join(PROJECT_DIR, 'tensorboard', MODLE_NAME), "Path to FCN model")
+tf.flags.DEFINE_string("fcn_dir", os.path.join(PROJECT_DIR, 'tensorboard', MODEL_NAME), "Path to FCN model")
 tf.flags.DEFINE_string('output_dir', os.path.join(PROJECT_DIR, 'output'), 'output path')
 tf.flags.DEFINE_string("data_dir", os.path.join(PROJECT_DIR, 'data'), 'path to data directory')
 tf.flags.DEFINE_string("model_dir", os.path.join(PROJECT_DIR, 'model'), "Path to vgg model mat")
-tf.flags.DEFINE_string("plot_dir", os.path.join(PROJECT_DIR, 'output', MODLE_NAME, PLOT_DIR + '_' + ITER), "path to plots")
+tf.flags.DEFINE_string("plot_dir", os.path.join(PROJECT_DIR, 'output', MODEL_NAME, PLOT_DIR + '_' + ITER), "path to plots")
 tf.flags.DEFINE_integer("batch_size", "9", "batch size for visualization")
 tf.flags.DEFINE_bool('debug', "False", "Debug mode: True/ False")
 tf.flags.DEFINE_string('mode', "predict", "Mode predict/ test/ visualize")
@@ -123,6 +125,7 @@ def main(argv=None):
     pred_annotation, logits = eval_function(image, keep_prob=keep_probability, FLAGS=FLAGS)
     pred_softmax = tf.nn.softmax(logits, name="Softmax")
 
+    # Create Iterator based on different mode
     if FLAGS.mode == 'visualize':
         valid_itr = DirectoryImageLabelIterator(FLAGS.data_dir, None, stride=(128, 128),
                                                 dim_ordering='tf',
@@ -172,7 +175,9 @@ def main(argv=None):
                 saver.restore(sess, ckpt.model_checkpoint_path)
         print('Model restored')
 
+    # Main action.
     if FLAGS.mode == 'visualize':
+        # Visualize the individual patches
         index = 0
         while valid_itr.has_next_before_reset():
             valid_image, valid_annotation = valid_itr.next()
@@ -199,11 +204,13 @@ def main(argv=None):
 
     if FLAGS.mode == 'predict':
         # Create prediction pipeline
-        index = 0
+
         # List holds the image
+        index = 0
         input_list = []
         result_list = []
         prob_img_list = []
+
         # List holds the raw prob
         prob_array_list = []
 
@@ -211,8 +218,8 @@ def main(argv=None):
             valid_image = valid_itr.next()
             valid_annotation = np.zeros(shape=valid_image.shape[:3] + (1,))
             pred, smax = sess.run([pred_annotation, pred_softmax], feed_dict={image: valid_image,
-                                                        annotation: valid_annotation,
-                                                        keep_probability: 1.0})
+                                                                              annotation: valid_annotation,
+                                                                              keep_probability: 1.0})
             # Save the Imput image and result prediction annotation
             pred = np.squeeze(pred, axis=3) * 255
             prob_road = smax[:,:,:,1]
@@ -255,7 +262,7 @@ def main(argv=None):
 
         # After the loop:
         # Revoke the method in masks_to_submission
-        pipeline_runtime_from_mask_to_submission(MODLE_NAME, PLOT_DIR + '_' + ITER, FLAGS.output_dir,
+        pipeline_runtime_from_mask_to_submission(MODEL_NAME, PLOT_DIR + '_' + ITER, FLAGS.output_dir,
                                                  input_list, result_list,
                                                  index_lim * index_lim,
                                                  (index_lim, index_lim),
@@ -266,7 +273,7 @@ def main(argv=None):
                                                 nb_patch_per_image=index_lim*index_lim)
 
         prob_concat = np.asanyarray(prob_concat_array[0], dtype=np.float32)
-        np.save(os.path.join(FLAGS.output_dir, MODLE_NAME, 'probability_{}_{}.gz'.format(MODLE_NAME, ITER)), prob_concat,
+        np.save(os.path.join(FLAGS.output_dir, MODEL_NAME, 'probability_{}_{}.gz'.format(MODEL_NAME, ITER)), prob_concat,
                 allow_pickle=False)
         # Save the probability maps
         for ind, prob_map in enumerate(prob_concat_array[0]):

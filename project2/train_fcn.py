@@ -71,7 +71,7 @@ tf.flags.DEFINE_string("plot_dir", os.path.join(PROJECT_DIR, 'output', MODEL_NAM
 tf.flags.DEFINE_integer("batch_size", "4", "batch size for training")
 tf.flags.DEFINE_float("learning_rate", "1e-4", "Learning rate for Adam Optimizer")
 tf.flags.DEFINE_bool('augmentation', 'False', 'Data runtime augmentation mode : True/ False')
-tf.flags.DEFINE_bool('debug', "True", "Debug mode: True/ False")
+tf.flags.DEFINE_bool('debug', "False", "Debug mode: True/ False")
 
 NUM_OF_CLASSES = 2
 IMAGE_SIZE = 400
@@ -188,7 +188,7 @@ def main(argv=None):
     if FLAGS.mode == 'train':
         train_itr = DirectoryImageLabelIterator(FLAGS.data_dir, None, stride=(128, 128),
                                                 dim_ordering='tf',
-                                                data_folder='massachuttes',
+                                                data_folder='massachusetts',
                                                 image_folder='sat', label_folder='label',
                                                 batch_size=FLAGS.batch_size,
                                                 target_size=(INPUT_SIZE, INPUT_SIZE),

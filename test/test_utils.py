@@ -50,7 +50,7 @@ def test_DirectoryImageLabelIterator():
                                       dim_ordering='tf',
                                       image_only=True,
                                       rescale=True,
-                                      data_folder='massachuttes',
+                                      data_folder='massachusetts',
                                       image_folder='sat', label_folder='label',
                                       target_size=(224,224), stride=(128,128),
                                       save_to_dir=path, save_prefix='test')
@@ -71,7 +71,7 @@ def test_ratio_DirectoryImageLabelGenerator():
                                       dim_ordering='tf',
                                       image_only=False,
                                       rescale=False,
-                                      data_folder='massachuttes',
+                                      data_folder='massachusetts',
                                       image_folder='sat', label_folder='label',
                                       ratio=0.5,
                                       shuffle=False,

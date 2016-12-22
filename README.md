@@ -173,9 +173,9 @@ original data.
 ### 2. Pre-train on generated dataset
 
 If you want to pre-train the model, please firstly see the section 
-'Obtaining the generated dataset' to download the massachuttes
+'Obtaining the generated dataset' to download the massachusetts
 dataset. It will result in 12,000 (400x400) sat images and label images 
-under directory  ```data/massachuttes/```.
+under directory  ```data/massachusetts/```.
 
 Then, alter the ```train_fcn.py``` ```MODE``` to ```'train'```.
 
@@ -209,7 +209,7 @@ The complete project directory
 ```
 path/to/project/
     data/       # Data folder
-        massachuttes/       # generated dataset
+        massachusetts/       # generated dataset
             label/              # label image
             sat/                # sattellite image
         training/           # training dataset

@@ -4,37 +4,38 @@ PRML project 2 Road Extraction
 
 ## Running requirement and installation
 In order to run the ```run.py```, please make sure you have successfully
-installed all the required library and set the corresponding paths correctly.
+installed all the required libraries and set the corresponding paths correctly.
 
 ### 1. Saved weights and meta data
-Since our best model is trained in TensorFlow, you will need the complete
-saved weights to get the evaluation results.
-You could get the trained weights and related testing files through the link
+Since our best model is trained in TensorFlow, you will need the obtain complete saved weights to get the evaluation results. You could get the trained weights and related testing files through the link
 
 Unzip the file and put
 
-### 2. Install requiring library
+### 2. Installing required libraries
 
-To only reproduce the best submission csv file and corresponding prediction images, you only need
-to install the following library in python2.7 interpreter. It is strongly that you
-create a virtual environment to install these library so that you could easily delete
-them afterwards. Running such file under Python 3 is never tested, although it should
-not be a problem.
+To only reproduce the best submission csv file and corresponding prediction images, you only need to install the following libraries and python2.7 interpreter. It is strongly recommended that you create a virtual environment to install these libraries so that you could easily delete them afterwards.
 
 * Keras
 ```pip install keras```
 * tensorflow
 ```pip install tensorflow```
 * Other python packages
-```python
-[
+```
 'matplotlib',
 'numpy',
 'scipy',
 'pillow',
 'cPickle'
-]
 ```
+
+In order to run all of the other models described in the documentation, following libraries are needed:
+
+* Theano
+```pip install theano```
+* scikit-learn
+```pip install -U scikit-learn```
+
+
 
 
 
@@ -42,7 +43,7 @@ not be a problem.
 
 
 
-## Project directory 
+## Project directory structure
 Please download the run-time 
 ```
 path/to/project/
@@ -70,3 +71,17 @@ path/to/project/
     model/      # Save-path to vgg19 model
     
 ```
+
+## Obtaining the dataset
+As explained in the report large amount of data were needed for training FCN. Therefore, in order to reproduce the training process (~16 hours on GPU GeForce GTX TITAN Z) you need to download the Massachusetts Road and Building Detection Dataset and preprocess it as described in following steps.
+
+### Obtaining the dataset
+The aerial images: https://www.cs.toronto.edu/~vmnih/data/mass_roads/train/sat/index.html
+The ground truth masks: https://www.cs.toronto.edu/~vmnih/data/mass_roads/train/map/index.html
+
+### Preprocessing
+Adjust variables *inputPath* and *outputPath* in INPUT PARAMETERS part of the script **utils/images2patches.py** so that the paths would correspond to your directory structure. All other parameters should be left as is (in order to compy with the description in the report). Then run the script.
+
+### Directory structure
+Move the generated images into *data/massachusetts/sat/* and the generated masks into *data/massachusetts/label* directories.
+

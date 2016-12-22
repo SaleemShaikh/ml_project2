@@ -1415,6 +1415,10 @@ class DirectoryImageLabelIterator(Iterator):
 
 
 class DirectoryPatchesIterator(object):
+    """ This class implements the iterator capable of indefinite iterating over files
+    contained in the given directory. This is useful when the data is so large they cannot be
+    loaded into the main memmory at once.
+    """
     def __init__(self, directory,
                  data_folder='training', label_folder='groundtruth', image_folder='images',
                  target_size=(16, 16), stride=(16, 16),
@@ -1422,15 +1426,22 @@ class DirectoryPatchesIterator(object):
                  dim_ordering='default',
                  classes={'non-road': 0, 'road': 1},
                  batch_size=128
-                 # shuffle=True, seed=None,
-                 # save_to_dir=None, save_prefix='', save_format='jpeg'
                  ):
-        """
+        """ Constructor.
 
         Parameters
         ----------
-        directory
-        image_data_generator
+        directory : str
+            Input directory.
+
+        data_folder : str
+            Name of directory containing dataset.
+
+        label_folder : str
+            Name of directory containing training labels.
+
+        image_folder : str
+            Name of directory containing training labels.
 
         target_size : tuple, int32
             2-tuple, width and height of the image patches to be extracted.
@@ -1438,16 +1449,17 @@ class DirectoryPatchesIterator(object):
         stride : tuple, int32
             2-tuple, width and height of the stride to make when extracting patches.
 
-        color_mode
-        dim_ordering
-        classes
-        class_mode
-        batch_size
-        shuffle
-        seed
-        save_to_dir
-        save_prefix
-        save_format
+        color_mode : str
+            Color mode.
+
+        dim_ordering : str
+            Distinguishing between tensorflow and theano.
+
+        classes : dict, key: str, val: int32
+            Names and numerical values representing classes.
+
+        batch_size : int32
+            Batch size.
         """
 
         # Set image dimension ordering. th: (ch, height, width), tf: (height, width, ch)
@@ -1488,9 +1500,6 @@ class DirectoryPatchesIterator(object):
 
         self.classes = classes
 
-        # self.save_to_dir = save_to_dir
-        # self.save_prefix = save_prefix
-        # self.save_format = save_format
 
         white_list_formats = {'png', 'jpg', 'jpeg', 'bmp', 'tiff'}
 
@@ -1578,31 +1587,25 @@ class DirectoryPatchesIterator(object):
 
         return currentIdx
 
-
     def __next__(self, *args, **kwargs):
+        """ Making this class an iterator instance.
+        """
         return self.next(*args, **kwargs)
 
 
-    # def _checkBatch(self, x, y):
-    #     for p, l in zip(x, y):
-    #         sumPx = np.sum(p)
-    #
-    #         # black
-    #         if sumPx == 0:
-    #             assert(l[0] == 1 and l[1] == 0)
-    #
-    #         # white
-    #         elif sumPx == p.shape[0] * p.shape[1] * p.shape[2]:
-    #             assert(l[0] == 0 and l[1] == 1)
-    #
-    #         else:
-    #             assert Exception('Patch has unexpected pixel value {pv}'.format(pv=sumPx))
-
-
     def next(self):
-        # Refill the images and labels queues
-        # print('len patches BACKGROUND = {}'.format(len(self.patchesBackground)))
-        # print('len patches SIGNAL = {}'.format(len(self.patchesSignal)))
+        """ Main method for performing iteration. Returns new data of batch size. The batch is balanced with
+        respect to classes.
+
+        Returns
+        -------
+        batch_x : np.array (float32)
+            (N x S x Ch)-matrix, where N is batch size, S is # of pixels in the image, Ch is # of channels.
+
+        batch_y : np.array (int32)
+            (N x 2)-matrix, where N is batch size. Binary specification of class (i.e. either [0, 1] or  [1, 0]).
+
+        """
 
         if (len(self.patchesBackground) < self.batchSize) or \
            (len(self.patchesSignal) < self.batchSize):
@@ -1619,10 +1622,6 @@ class DirectoryPatchesIterator(object):
 
                 imgData = load_img(imgDataFile, greyscale=False)
                 imgLabel = load_img(imgLabelFile, greyscale=True)
-
-                # Normalize, so that all pixels' values are in range [0.0, 1.0]
-                # imgData  = normalizeImage(imgData, 1.0 / 255.0)
-                # imgLabel = normalizeImage(imgLabel, 1.0 / 255.0)
 
                 newPatchesBgrd, newPatchesSig = \
                     extractLabeledPatches(imgData, imgLabel, self.target_size, self.stride, 0.25)
@@ -1646,11 +1645,6 @@ class DirectoryPatchesIterator(object):
         patchesBatch.extend(self._popFrontPatchesSignal(numSigSamples))
         assert(len(patchesBatch) == self.batchSize)
 
-        # labels (y data)
-        # labelsBgrd = np.zeros(numBgrdSamples)
-        # labelsSig = np.ones(numSigSamples)
-        # labelsBatch = np.hstack((labelsBgrd, labelsSig))
-
         labelsBatch = np.vstack((np.hstack((np.ones((numBgrdSamples, 1), dtype=np.int32),
                                             np.zeros((numBgrdSamples, 1), dtype=np.int32))),
                                  np.hstack((np.zeros((numSigSamples, 1), dtype=np.int32),
@@ -1663,9 +1657,6 @@ class DirectoryPatchesIterator(object):
             batch_x[i] = patchesBatch[indices[i]]
 
         batch_y = labelsBatch[indices]
-
-        # debug
-        # self._checkBatch(batch_x, batch_y)
 
         return batch_x, batch_y
 

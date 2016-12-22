@@ -131,28 +131,6 @@ def getLabels(patches, threshold):
     return labels
 
 
-# def normalizeImage(img, q):
-#     """ Normalizes the pixel values by multiplying them by `q`.
-#
-#     Parameters
-#     ----------
-#     img : PIL.Image
-#         Input image
-#
-#     q : float32
-#         Quotient by which the pixel values are multiplied.
-#
-#     Returns
-#     -------
-#     img : PIL.Image
-#         Normalized image.
-#     """
-#
-#     normImg = img.point(lambda i: i * q)
-#
-#     return normImg
-
-
 def extractLabeledPatches(imgData, imgLabel, patchSize, stride, threshold=0.25):
 
     """ Extracts the patches
@@ -188,34 +166,6 @@ def extractLabeledPatches(imgData, imgLabel, patchSize, stride, threshold=0.25):
     patchesSignal : list, PIL.Image
         List of images of size `patchSize` corresponding to class 1.
     """
-
-    # Check that the label image is black and white.
-    # numPixels = imgLabel.width * imgLabel.height
-    #
-    # imgLabelNp = np.asarray(imgLabel)
-
-    # black = np.min(imgLabelNp)
-    # white = np.max(imgLabelNp)
-    #
-    # if(black == white):
-    #     raise Exception('black == white')
-    #
-    # numBlack = np.sum(imgLabelNp == black)
-    # numWhite = np.sum(imgLabelNp == white)
-    #
-    # if black != 0 or (white != 1.0 and white != 255) or (numBlack + numWhite != numPixels):
-    #     raise Exception('Input label image must contain only two distinct values, '
-    #                     'which are Black = 0, White = 1.0 or White = 255. Found '
-    #                     'values: white == {w}, black == {b}, numWhite == {nw}, '
-    #                     'numBlack == {nb}, numBlack + numWhite == {nbw}, '
-    #                     'numPixels == {np}. Aborting.'.format(w=white, b=black,
-    #                         nw=numWhite, nb=numBlack, nbw=numWhite + numBlack,
-    #                         np=numPixels))
-
-    # Normalize label image so that pixel values are in range [0.0, 1.0]
-    # normalizedImgLabel = imgLabel
-    # if white == 255:
-    #     normalizedImgLabel = normalizeImage(imgLabel, 1.0 / 255.0)
 
     # Extract patches.
     dataPatches = extractPatches(imgData, patchSize, stride)

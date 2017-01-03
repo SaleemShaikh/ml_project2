@@ -79,7 +79,7 @@ INPUT_SIZE = 224
 
 
 def train(loss, var):
-    """
+    """c
     Define training operation (denoted as train_op) in the train loop
     Parameters
     ----------
